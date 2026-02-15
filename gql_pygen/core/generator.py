@@ -50,14 +50,14 @@ def safe_docstring(text: str) -> str:
 def safe_comment(text: str) -> str:
     """Make text safe for a single-line Python comment.
 
-    Removes newlines, replaces markdown formatting, and ensures
+    Removes newlines, replaces Markdown formatting, and ensures
     the text doesn't cause syntax errors when used as # comment.
     """
     if not text:
         return ""
     # Replace newlines with spaces
     text = text.replace('\n', ' ').replace('\r', '')
-    # Remove markdown bold/italic markers
+    # Remove Markdown bold/italic markers
     text = text.replace('**', '').replace('*', '')
     # Collapse multiple spaces
     import re
@@ -102,8 +102,7 @@ class CodeGenerator:
         generator = CodeGenerator(
             ir=schema,
             output_dir="./generated",
-            template_dir="./my_templates"
-        )
+            template_dir="./my_templates")
     """
 
     # Maximum depth for field expansion in queries
@@ -127,7 +126,7 @@ class CodeGenerator:
         self.output_dir = output_dir
         self.template_dir = template_dir
 
-        # Build template loader - custom templates take precedence
+        # Build template-loader-custom templates take precedence
         loaders = []
         if template_dir:
             template_path = Path(template_dir)
@@ -173,7 +172,7 @@ class CodeGenerator:
         lines = ["__typename"]
         for field in ir_type.fields:
             field_type = field.type_name
-            # Check if field is a scalar or enum
+            # Check if a field is a scalar or enum
             if field_type in self.ir.scalars or field_type in self.ir.enums:
                 lines.append(field.name)
             elif field_type in ["String", "Int", "Float", "Boolean", "ID"]:
@@ -221,7 +220,7 @@ class CodeGenerator:
     def _generate_file(
         self, template_name: str, output_path: str, context: dict[str, Any]
     ):
-        """Render a template and write to file."""
+        """Render a template and write to a file."""
         template = self.env.get_template(template_name)
         content = template.render(context)
 
@@ -375,8 +374,8 @@ class CodeGenerator:
 
         Strategy:
         1. If only one operation has a name: use the name as-is
-        2. If query and mutation share a name: query keeps name, mutation gets '_mutation'
-        3. If multiple operations of same type share a name: append index (_2, _3, etc.)
+        2. If query and mutation share a name: query keeps the name, mutation gets '_mutation'
+        3. If multiple same operations share a name: append index (_2, _3, etc.)
 
         Returns a list of dicts containing the operation plus a 'method_name' key.
         """
@@ -408,7 +407,7 @@ class CodeGenerator:
                     # Query keeps the base name
                     method_name = base_name
 
-            # Check if this method_name is already used and add index if needed
+            # Check if this method_name is already used and add an index if needed
             if method_name in assigned_names:
                 assigned_names[method_name] += 1
                 method_name = f"{method_name}_{assigned_names[method_name]}"

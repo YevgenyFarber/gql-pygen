@@ -87,8 +87,8 @@ class AddHeaderHook:
     def __init__(self, header: str):
         self.header = header
 
-    def post_generate(self, filename: str, content: str) -> str:
-        """Add header to the beginning of the file."""
+    def post_generate(self, _filename: str, content: str) -> str:
+        """Add a header to the beginning of the file."""
         if not self.header.endswith("\n"):
             header = self.header + "\n\n"
         else:
@@ -101,7 +101,7 @@ class FilterTypesHook:
 
     Example:
         # Remove all types starting with underscore
-        hook = FilterTypesHook(exclude_prefix="_")
+        hook = FilterTypesHook(exclude_prefix= "_")
     """
 
     def __init__(
@@ -130,9 +130,9 @@ class FilterTypesHook:
 
     def pre_generate(self, ir: IRSchema) -> IRSchema:
         """Filter types from the IR."""
-        ir.types = [t for t in ir.types if self._should_include(t.name)]
-        ir.inputs = [i for i in ir.inputs if self._should_include(i.name)]
-        ir.enums = [e for e in ir.enums if self._should_include(e.name)]
+        ir.types = {k: v for k, v in ir.types.items() if self._should_include(v.name)}
+        ir.inputs = {k: v for k, v in ir.inputs.items() if self._should_include(v.name)}
+        ir.enums = {k: v for k, v in ir.enums.items() if self._should_include(v.name)}
         return ir
 
 
@@ -162,4 +162,3 @@ class HookRunner:
         for hook in self.post_hooks:
             content = hook.post_generate(filename, content)
         return content
-

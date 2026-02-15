@@ -16,21 +16,21 @@ from gql_pygen.core.ir import IREnum, IRSchema, IRType
 def sample_ir():
     """Create a sample IR schema for testing."""
     return IRSchema(
-        scalars=[],
-        enums=[
-            IREnum(name="Status", values=[], description=None),
-            IREnum(name="_Internal", values=[], description=None),
-        ],
-        types=[
-            IRType(name="User", fields=[], description=None, interfaces=[]),
-            IRType(name="_Meta", fields=[], description=None, interfaces=[]),
-            IRType(name="Product", fields=[], description=None, interfaces=[]),
-        ],
-        inputs=[
-            IRType(name="CreateUserInput", fields=[], description=None, interfaces=[]),
-            IRType(name="_DebugInput", fields=[], description=None, interfaces=[]),
-        ],
-        interfaces=[],
+        scalars={},
+        enums={
+            "Status": IREnum(name="Status", values=[], description=None),
+            "_Internal": IREnum(name="_Internal", values=[], description=None),
+        },
+        types={
+            "User": IRType(name="User", fields=[], description=None, interfaces=[]),
+            "_Meta": IRType(name="_Meta", fields=[], description=None, interfaces=[]),
+            "Product": IRType(name="Product", fields=[], description=None, interfaces=[]),
+        },
+        inputs={
+            "CreateUserInput": IRType(name="CreateUserInput", fields=[], description=None, interfaces=[]),
+            "_DebugInput": IRType(name="_DebugInput", fields=[], description=None, interfaces=[]),
+        },
+        interfaces={},
         queries=[],
         mutations=[],
     )
@@ -64,7 +64,7 @@ class TestFilterTypesHook:
         hook = FilterTypesHook(exclude_prefix="_")
         result = hook.pre_generate(sample_ir)
 
-        type_names = [t.name for t in result.types]
+        type_names = [t.name for t in result.types.values()]
         assert "User" in type_names
         assert "Product" in type_names
         assert "_Meta" not in type_names
@@ -73,14 +73,14 @@ class TestFilterTypesHook:
         hook = FilterTypesHook(exclude_suffix="Input")
         result = hook.pre_generate(sample_ir)
 
-        input_names = [i.name for i in result.inputs]
+        input_names = [i.name for i in result.inputs.values()]
         assert len(input_names) == 0  # All inputs end with "Input"
 
     def test_include_prefix(self, sample_ir):
         hook = FilterTypesHook(include_prefix="Create")
         result = hook.pre_generate(sample_ir)
 
-        input_names = [i.name for i in result.inputs]
+        input_names = [i.name for i in result.inputs.values()]
         assert "CreateUserInput" in input_names
         assert "_DebugInput" not in input_names
 
@@ -88,7 +88,7 @@ class TestFilterTypesHook:
         hook = FilterTypesHook(exclude_prefix="_")
         result = hook.pre_generate(sample_ir)
 
-        enum_names = [e.name for e in result.enums]
+        enum_names = [e.name for e in result.enums.values()]
         assert "Status" in enum_names
         assert "_Internal" not in enum_names
 
@@ -101,7 +101,7 @@ class TestHookRunner:
         runner.add_pre_hook(FilterTypesHook(exclude_prefix="_"))
 
         result = runner.run_pre_hooks(sample_ir)
-        type_names = [t.name for t in result.types]
+        type_names = [t.name for t in result.types.values()]
         assert "_Meta" not in type_names
 
     def test_run_post_hooks(self):
