@@ -80,14 +80,15 @@ if TYPE_CHECKING:
 
 {# Macro for field type annotation - ALL fields are Optional for automation #}
 {# Basic types (str, int, float, bool) don't need quotes. Other types need quotes for forward refs. #}
+{# When using union with forward references, the ENTIRE union must be quoted: "TypeName | None" #}
 {%- set BASIC_TYPES = ['str', 'int', 'float', 'bool'] -%}
 {%- macro field_type(field) -%}
 {%- set py_type = python_type(field.full_type_name) -%}
 {%- if field.is_list -%}
-{%- if py_type in BASIC_TYPES %}list[{{ py_type }}]{% else %}list["{{ py_type }}"]{% endif -%}
+{%- if py_type in BASIC_TYPES %}list[{{ py_type }}] | None{% else %}"list[{{ py_type }}] | None"{% endif -%}
 {%- else -%}
-{%- if py_type in BASIC_TYPES %}{{ py_type }}{% else %}"{{ py_type }}"{% endif -%}
-{%- endif %} | None
+{%- if py_type in BASIC_TYPES %}{{ py_type }} | None{% else %}"{{ py_type }} | None"{% endif -%}
+{%- endif -%}
 {%- endmacro -%}
 
 {# Macro for field default value #}
@@ -96,21 +97,26 @@ if TYPE_CHECKING:
 {%- endmacro -%}
 
 {# Generate interfaces first as base classes #}
-{% for interface in interfaces %}
+{%- for interface in interfaces %}
+
+
 class {{ interface.name }}(BaseModel):
     """{{ (interface.description or interface.name)|safe_docstring }}"""
+
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 {%- for field in interface.fields %}
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
 {%- endfor %}
-
-{% endfor %}
+{%- endfor %}
 {# Generate types with interface inheritance #}
-{% for type in types %}
+{%- for type in types %}
 {#- Build inheritance list: interfaces first, then BaseModel as fallback -#}
-{%- set base_classes = type.full_interfaces if type.full_interfaces else ['BaseModel'] -%}
+{%- set base_classes = type.full_interfaces if type.full_interfaces else ['BaseModel'] %}
+
+
 class {{ type.name }}({{ base_classes | join(', ') }}):
     """{{ (type.description or type.name)|safe_docstring }}"""
+
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 {%- for field in type.fields %}
     {#- Skip fields inherited from interfaces -#}
@@ -126,8 +132,7 @@ class {{ type.name }}({{ base_classes | join(', ') }}):
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
     {%- endif -%}
 {%- endfor %}
-
-{% endfor %}
+{%- endfor %}
 
 # Rebuild models to resolve forward references within this module
 def _rebuild_module_models():

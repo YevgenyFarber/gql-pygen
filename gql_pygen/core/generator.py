@@ -370,7 +370,6 @@ class CodeGenerator:
             f.write('    from cato_gql_client_pkg.generated_client.models import *\n')
             f.write('"""\n\n')
 
-            f.write('import sys\n')
             f.write('import importlib\n')
             f.write('from typing import TYPE_CHECKING\n')
             f.write('from pydantic import BaseModel\n\n')
@@ -467,7 +466,9 @@ if TYPE_CHECKING:
         ]
         with open(os.path.join(self.output_dir, "clients/__init__.py"), "w") as f:
             f.write('"""Generated GraphQL clients."""\n\n')
-            f.write("from .base_client import GraphQLClient, GraphQLError\n")
+            # Use explicit re-export to avoid F401 unused import warning
+            f.write("from .base_client import GraphQLClient as GraphQLClient\n")
+            f.write("from .base_client import GraphQLError as GraphQLError\n")
             for client_file in sorted(client_files):
                 if client_file != "base_client":
                     f.write(f"from .{client_file} import *\n")
