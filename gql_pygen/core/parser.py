@@ -11,10 +11,12 @@ from graphql import (
     InputObjectTypeDefinitionNode,
     InterfaceTypeDefinitionNode,
     ListTypeNode,
+    NamedTypeNode,
     NonNullTypeNode,
     ObjectTypeDefinitionNode,
     ObjectTypeExtensionNode,
     ScalarTypeDefinitionNode,
+    TypeNode,
     parse,
 )
 
@@ -35,7 +37,7 @@ class SchemaParser:
     """Parses GraphQL schema files into IR."""
 
     def __init__(self, schema_path: str):
-        """Initialize parser with path to schema file or directory."""
+        """Initialize a parser with a path to a schema file or directory."""
         self.schema_path = schema_path
         self.ir = IRSchema()
         self.current_file = ""
@@ -145,7 +147,7 @@ class SchemaParser:
             fields = self._process_fields(node.fields)
             interfaces = [i.name.value for i in node.interfaces]
 
-            # Check if type already exists (from earlier extension processing)
+            # Check if the type already exists (from earlier extension processing)
             if name in self.ir.types:
                 existing = self.ir.types[name]
                 # Merge: add base fields + description, keep existing extension fields
@@ -187,7 +189,7 @@ class SchemaParser:
         if name in ("Query", "Mutation"):
             self._process_operations(node)
         else:
-            # Merge extension fields into existing type
+            # Merge extension fields into the existing type
             self._merge_extension_fields(name, node)
 
     def _merge_extension_fields(self, type_name: str, node: ObjectTypeExtensionNode):
@@ -198,7 +200,7 @@ class SchemaParser:
         """
         extension_fields = self._process_fields(node.fields)
 
-        # Check if type already exists
+        # Check if the type already exists
         if type_name in self.ir.types:
             existing_type = self.ir.types[type_name]
             # Track existing field names to avoid duplicates
@@ -217,7 +219,7 @@ class SchemaParser:
             self.ir.type_to_file[type_name] = self.current_file
 
     def _process_fields(self, field_nodes) -> list[IRField]:
-        """Process field definitions into IRField list."""
+        """Process field definitions into the IRField list."""
         fields = []
         for node in field_nodes:
             type_info = self._get_type_info(node.type)
@@ -283,8 +285,9 @@ class SchemaParser:
             else:
                 self.ir.mutations.append(op)
 
-    def _get_type_info(self, type_node) -> dict[str, Any]:
-        """Extract type name, is_list, and is_optional from type node."""
+    @staticmethod
+    def _get_type_info(type_node: TypeNode) -> dict[str, Any]:
+        """Extract the type name, is_list, and is_optional from the type node."""
         is_optional = True
         is_list = False
 
@@ -297,7 +300,7 @@ class SchemaParser:
         if isinstance(type_node, ListTypeNode):
             is_list = True
             type_node = type_node.type
-            # Handle non-null inside list [Type!]
+            # Handle non-null inside a list [Type!]
             if isinstance(type_node, NonNullTypeNode):
                 type_node = type_node.type
 
@@ -306,6 +309,9 @@ class SchemaParser:
             type_node = type_node.type
             if isinstance(type_node, NonNullTypeNode):
                 type_node = type_node.type
+
+        # After unwrapping, we should have a NamedTypeNode
+        assert isinstance(type_node, NamedTypeNode), f"Expected NamedTypeNode, got {type(type_node)}"
 
         return {
             "name": type_node.name.value,
@@ -321,7 +327,7 @@ class SchemaParser:
 
         Example path: Mutation.policy -> PolicyMutations.internetFirewall ->
                       InternetFirewallPolicyMutations.addRule
-        Result: IROperation with path=["policy", "internetFirewall", "addRule"]
+        Result: IROperation with path=[ "policy", "internetFirewall", "addRule"]
         """
         nested_queries: list[IROperation] = []
         nested_mutations: list[IROperation] = []
@@ -389,7 +395,7 @@ class SchemaParser:
                 )
             else:
                 # This is a leaf operation (returns a non-namespace type)
-                # Only include if it has arguments or returns a meaningful type
+                # Only include it if it has arguments or returns a meaningful type
                 # (skip placeholder fields)
                 if field.name == "placeholder" and field.type_name == "bool":
                     continue
@@ -406,4 +412,3 @@ class SchemaParser:
                     parent_arguments=list(parent_args),  # Copy to avoid mutation
                 )
                 results.append(op)
-
