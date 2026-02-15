@@ -269,12 +269,12 @@ class CodeGenerator:
 
         for base_name in sorted(models_by_file.keys()):
             content = models_by_file[base_name]
-            self._prepare_model_context(base_name, content, models_by_file, interface_fields)
+            self._prepare_model_context(base_name, content, interface_fields)
             content["interface_fields"] = interface_fields
             self._generate_file("models.py.j2", f"models/{base_name}.py", content)
 
     def _prepare_model_context(
-        self, base_name: str, content: dict, all_models: dict, interface_fields: dict
+        self, base_name: str, content: dict, interface_fields: dict
     ):
         """Prepare cross-module imports and full type names."""
         local_types = {t.name for t in content["types"]} | {
@@ -369,9 +369,8 @@ class CodeGenerator:
                 {"client_name": client_name, "operations": ops_with_method_names},
             )
 
-    def _resolve_method_name_conflicts(
-        self, operations: list
-    ) -> list[dict]:
+    @staticmethod
+    def _resolve_method_name_conflicts(operations: list) -> list[dict]:
         """Resolve duplicate method names by suffixing with operation type and index.
 
         Strategy:
@@ -549,4 +548,3 @@ if TYPE_CHECKING:
                     f.write("from .base_client import GraphQLError as GraphQLError\n")
                 else:
                     f.write(f"from .{client_file} import *\n")
-
