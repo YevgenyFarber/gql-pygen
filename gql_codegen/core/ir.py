@@ -80,7 +80,11 @@ class IRScalar:
 
 @dataclass
 class IROperation:
-    """Represents a GraphQL query or mutation."""
+    """Represents a GraphQL query or mutation.
+
+    For nested operations (e.g., policy.internetFirewall.addRule),
+    the path field contains the full traversal path from the root.
+    """
     name: str
     operation_type: str  # 'query' or 'mutation'
     arguments: List[IRArgument]
@@ -88,6 +92,32 @@ class IROperation:
     is_return_list: bool = False
     is_return_optional: bool = True
     description: Optional[str] = None
+    # Full path from root, e.g., ["policy", "internetFirewall", "addRule"]
+    path: List[str] = field(default_factory=list)
+    # Arguments collected from parent namespace fields (e.g., accountId from policy(accountId))
+    parent_arguments: List[IRArgument] = field(default_factory=list)
+
+    def __post_init__(self):
+        # If path is empty, set it to just the operation name
+        if not self.path:
+            self.path = [self.name]
+
+    @property
+    def full_name(self) -> str:
+        """Return underscore-joined path for method names, e.g., 'policy_internet_firewall_add_rule'."""
+        return "_".join(self._to_snake_case(p) for p in self.path)
+
+    @property
+    def all_arguments(self) -> List[IRArgument]:
+        """Return all arguments including parent namespace arguments."""
+        return self.parent_arguments + self.arguments
+
+    @staticmethod
+    def _to_snake_case(name: str) -> str:
+        """Convert camelCase to snake_case."""
+        import re
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
 @dataclass
@@ -122,4 +152,13 @@ class IRSchema:
         result.update(self.inputs)
         result.update(self.interfaces)
         return result
+
+    @property
+    def all_operations(self) -> List[IROperation]:
+        """Return all queries and mutations."""
+        return self.queries + self.mutations
+
+    def is_namespace_type(self, type_name: str) -> bool:
+        """Check if a type is a namespace type (ends with Mutations or Queries)."""
+        return type_name.endswith("Mutations") or type_name.endswith("Queries")
 

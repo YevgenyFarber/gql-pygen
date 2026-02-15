@@ -4,7 +4,7 @@ Parses .graphqls files and produces an IRSchema.
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from graphql import (
     EnumTypeDefinitionNode,
@@ -13,6 +13,7 @@ from graphql import (
     ListTypeNode,
     NonNullTypeNode,
     ObjectTypeDefinitionNode,
+    ObjectTypeExtensionNode,
     ScalarTypeDefinitionNode,
     parse,
 )
@@ -55,6 +56,8 @@ class SchemaParser:
                     raise
 
         self._resolve_dependencies()
+        # Discover nested operations after all types are parsed
+        self._discover_nested_operations()
         return self.ir
 
     def _collect_schema_files(self) -> List[str]:
@@ -94,6 +97,9 @@ class SchemaParser:
                 self._process_interface(definition)
             elif isinstance(definition, ObjectTypeDefinitionNode):
                 self._process_object_type(definition)
+            elif isinstance(definition, ObjectTypeExtensionNode):
+                # Handle 'extend type Query/Mutation' as operations
+                self._process_object_extension(definition)
             elif isinstance(definition, InputObjectTypeDefinitionNode):
                 self._process_input_type(definition)
 
@@ -138,12 +144,26 @@ class SchemaParser:
         else:
             fields = self._process_fields(node.fields)
             interfaces = [i.name.value for i in node.interfaces]
-            self.ir.types[name] = IRType(
-                name=name,
-                fields=fields,
-                interfaces=interfaces,
-                description=node.description.value if node.description else None,
-            )
+
+            # Check if type already exists (from earlier extension processing)
+            if name in self.ir.types:
+                existing = self.ir.types[name]
+                # Merge: add base fields + description, keep existing extension fields
+                existing_names = {f.name for f in existing.fields}
+                for field in fields:
+                    if field.name not in existing_names:
+                        existing.fields.append(field)
+                # Update metadata from the base type definition
+                existing.interfaces = interfaces
+                if node.description:
+                    existing.description = node.description.value
+            else:
+                self.ir.types[name] = IRType(
+                    name=name,
+                    fields=fields,
+                    interfaces=interfaces,
+                    description=node.description.value if node.description else None,
+                )
             self.ir.type_to_file[name] = self.current_file
 
     def _process_input_type(self, node: InputObjectTypeDefinitionNode):
@@ -156,6 +176,45 @@ class SchemaParser:
             is_input=True,
         )
         self.ir.type_to_file[name] = self.current_file
+
+    def _process_object_extension(self, node: ObjectTypeExtensionNode):
+        """Process 'extend type' definitions.
+
+        For Query/Mutation: treats fields as operations.
+        For other types: merges fields into the existing type definition.
+        """
+        name = node.name.value
+        if name in ("Query", "Mutation"):
+            self._process_operations(node)
+        else:
+            # Merge extension fields into existing type
+            self._merge_extension_fields(name, node)
+
+    def _merge_extension_fields(self, type_name: str, node: ObjectTypeExtensionNode):
+        """Merge extension fields into an existing type.
+
+        This handles `extend type PolicyMutations { ... }` by adding the
+        extension fields to the existing PolicyMutations type.
+        """
+        extension_fields = self._process_fields(node.fields)
+
+        # Check if type already exists
+        if type_name in self.ir.types:
+            existing_type = self.ir.types[type_name]
+            # Track existing field names to avoid duplicates
+            existing_names = {f.name for f in existing_type.fields}
+            for field in extension_fields:
+                if field.name not in existing_names:
+                    existing_type.fields.append(field)
+                    existing_names.add(field.name)
+        else:
+            # Type doesn't exist yet, create it
+            self.ir.types[type_name] = IRType(
+                name=type_name,
+                fields=extension_fields,
+                description=None,
+            )
+            self.ir.type_to_file[type_name] = self.current_file
 
     def _process_fields(self, field_nodes) -> List[IRField]:
         """Process field definitions into IRField list."""
@@ -189,7 +248,9 @@ class SchemaParser:
             )
         return fields
 
-    def _process_operations(self, node: ObjectTypeDefinitionNode):
+    def _process_operations(
+        self, node: Union[ObjectTypeDefinitionNode, ObjectTypeExtensionNode]
+    ):
         """Process Query or Mutation type into operations."""
         op_type = "query" if node.name.value == "Query" else "mutation"
         for field in node.fields:
@@ -251,4 +312,98 @@ class SchemaParser:
             "is_list": is_list,
             "is_optional": is_optional,
         }
+
+    def _discover_nested_operations(self):
+        """Discover nested operations in namespace types.
+
+        Traverses types ending with 'Mutations' or 'Queries' to find
+        actual operations (fields with input arguments that return non-namespace types).
+
+        Example path: Mutation.policy -> PolicyMutations.internetFirewall ->
+                      InternetFirewallPolicyMutations.addRule
+        Result: IROperation with path=["policy", "internetFirewall", "addRule"]
+        """
+        nested_queries: List[IROperation] = []
+        nested_mutations: List[IROperation] = []
+
+        # Process top-level queries/mutations that return namespace types
+        for op in self.ir.queries:
+            if self.ir.is_namespace_type(op.return_type):
+                # This is a namespace, recurse into it
+                self._traverse_namespace(
+                    type_name=op.return_type,
+                    op_type="query",
+                    path=[op.name],
+                    parent_args=op.arguments,
+                    results=nested_queries
+                )
+
+        for op in self.ir.mutations:
+            if self.ir.is_namespace_type(op.return_type):
+                self._traverse_namespace(
+                    type_name=op.return_type,
+                    op_type="mutation",
+                    path=[op.name],
+                    parent_args=op.arguments,
+                    results=nested_mutations
+                )
+
+        # Add discovered nested operations
+        self.ir.queries.extend(nested_queries)
+        self.ir.mutations.extend(nested_mutations)
+
+    def _traverse_namespace(
+        self,
+        type_name: str,
+        op_type: str,
+        path: List[str],
+        parent_args: List[IRArgument],
+        results: List[IROperation]
+    ):
+        """Recursively traverse a namespace type to find operations.
+
+        Args:
+            type_name: The namespace type to explore (e.g., PolicyMutations)
+            op_type: 'query' or 'mutation'
+            path: Current path from root (e.g., ["policy"])
+            parent_args: Arguments accumulated from parent namespaces
+            results: List to append discovered operations to
+        """
+        type_def = self.ir.types.get(type_name)
+        if not type_def:
+            return
+
+        for field in type_def.fields:
+            field_path = path + [field.name]
+
+            if self.ir.is_namespace_type(field.type_name):
+                # This is another namespace - recurse deeper
+                # Accumulate any arguments from this field
+                accumulated_args = parent_args + field.arguments
+                self._traverse_namespace(
+                    type_name=field.type_name,
+                    op_type=op_type,
+                    path=field_path,
+                    parent_args=accumulated_args,
+                    results=results
+                )
+            else:
+                # This is a leaf operation (returns a non-namespace type)
+                # Only include if it has arguments or returns a meaningful type
+                # (skip placeholder fields)
+                if field.name == "placeholder" and field.type_name == "bool":
+                    continue
+
+                op = IROperation(
+                    name=field.name,
+                    operation_type=op_type,
+                    arguments=field.arguments,
+                    return_type=field.type_name,
+                    is_return_list=field.is_list,
+                    is_return_optional=field.is_optional,
+                    description=field.description,
+                    path=field_path,
+                    parent_arguments=list(parent_args),  # Copy to avoid mutation
+                )
+                results.append(op)
 
