@@ -14,7 +14,7 @@ import tempfile
 import tarfile
 from pathlib import Path
 
-from gql_codegen.core import (
+from gql_pygen.core import (
     SchemaParser,
     ClientGenerator,
     QueryBuilder,

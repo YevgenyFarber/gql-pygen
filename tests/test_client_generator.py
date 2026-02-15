@@ -2,13 +2,13 @@
 
 import ast
 import pytest
-from gql_codegen.core.client_generator import (
+from gql_pygen.core.client_generator import (
     ClientGenerator,
     ClientNode,
     to_snake_case,
     to_pascal_case,
 )
-from gql_codegen.core.ir import IRSchema, IROperation, IRArgument
+from gql_pygen.core.ir import IRSchema, IROperation, IRArgument
 
 
 # =============================================================================

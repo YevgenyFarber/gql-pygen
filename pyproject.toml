@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gql-codegen"
+name = "gql-pygen"
 version = "0.1.0"
-description = "Improved GraphQL code generator for Python"
+description = "GraphQL to Python code generator - generates typed Pydantic models and async clients"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -18,6 +18,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic[email]",
     "click>=8.0.0",
+    "httpx>=0.28.1",
 ]
 
 [project.optional-dependencies]
@@ -28,12 +29,17 @@ dev = [
 ]
 
 [project.scripts]
-gql-codegen = "gql_codegen.cli:main"
+gql-pygen = "gql_pygen.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["gql_codegen*"]
+include = ["gql_pygen*"]
 
 [tool.setuptools.package-data]
-gql_codegen = ["templates/*.j2"]
+gql_pygen = ["templates/*.j2"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
 
