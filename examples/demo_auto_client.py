@@ -45,7 +45,7 @@ def main():
     print(f"   Found {len(ir.queries)} queries and {len(ir.mutations)} mutations")
     print(f"   {len(ir.types)} types, {len(ir.enums)} enums")
     
-    # Create query builder
+    # Create a query builder
     print("\n2. Creating query builder...")
     builder = QueryBuilder(ir)
     
@@ -118,4 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

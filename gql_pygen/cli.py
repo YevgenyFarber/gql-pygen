@@ -216,7 +216,7 @@ def client(schema: str, output: str, client_name: str, verbose: bool):
             click.echo(f"  Classes: {num_classes}")
             click.echo(f"  Async methods: {num_methods}")
 
-        # Create output directory if needed
+        # Create an output directory if needed
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write the file
@@ -235,4 +235,3 @@ def client(schema: str, output: str, client_name: str, verbose: bool):
 
 if __name__ == "__main__":
     main()
-

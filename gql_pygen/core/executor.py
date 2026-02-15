@@ -89,7 +89,7 @@ class GraphQLExecutor:
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the HTTP client."""
         if self._client is None:
-            # Build headers from auth handler
+            # Build headers from an auth handler
             headers = {"Content-Type": "application/json"}
             headers.update(self._auth.get_headers())
 
@@ -173,7 +173,8 @@ class GraphQLExecutor:
         # Extract the nested result
         return self._extract_path(data, operation_path)
 
-    def _extract_path(self, data: dict[str, Any], path: list[str]) -> Any:
+    @staticmethod
+    def _extract_path(data: dict[str, Any], path: list[str]) -> Any:
         """Extract nested data at the given path."""
         result = data
         for segment in path:
@@ -185,7 +186,8 @@ class GraphQLExecutor:
                 return None
         return result
 
-    def _serialize_variables(self, variables: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _serialize_variables(variables: dict[str, Any]) -> dict[str, Any]:
         """Serialize variables for the GraphQL request.
 
         Handles Pydantic models by converting them to dicts.
@@ -206,4 +208,3 @@ class GraphQLExecutor:
             else:
                 result[key] = value
         return result
-

@@ -49,7 +49,7 @@ class ScalarHandler(Protocol):
         ...
 
     def deserialize(self, value: Any) -> Any:
-        """Convert JSON value from GraphQL to Python type."""
+        """Convert a JSON value from GraphQL to a Python type."""
         ...
 
 
@@ -59,11 +59,13 @@ class DateTimeHandler:
     python_type = "datetime"
     import_statement = "from datetime import datetime"
 
-    def serialize(self, value: datetime) -> str:
+    @staticmethod
+    def serialize(value: datetime) -> str:
         """Convert datetime to ISO 8601 string."""
         return value.isoformat()
 
-    def deserialize(self, value: str) -> datetime:
+    @staticmethod
+    def deserialize(value: str) -> datetime:
         """Parse ISO 8601 string to datetime."""
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -74,11 +76,13 @@ class DateHandler:
     python_type = "date"
     import_statement = "from datetime import date"
 
-    def serialize(self, value) -> str:
+    @staticmethod
+    def serialize(value) -> str:
         """Convert date to ISO 8601 string."""
         return value.isoformat()
 
-    def deserialize(self, value: str):
+    @staticmethod
+    def deserialize(value: str):
         """Parse ISO 8601 date string."""
         from datetime import date
         return date.fromisoformat(value)
@@ -90,11 +94,13 @@ class UUIDHandler:
     python_type = "UUID"
     import_statement = "from uuid import UUID"
 
-    def serialize(self, value: UUID) -> str:
+    @staticmethod
+    def serialize(value: UUID) -> str:
         """Convert UUID to string."""
         return str(value)
 
-    def deserialize(self, value: str) -> UUID:
+    @staticmethod
+    def deserialize(value: str) -> UUID:
         """Parse string to UUID."""
         return UUID(value)
 
@@ -105,11 +111,13 @@ class JSONHandler:
     python_type = "Any"
     import_statement = "from typing import Any"
 
-    def serialize(self, value: Any) -> Any:
+    @staticmethod
+    def serialize(value: Any) -> Any:
         """JSON values are already serializable."""
         return value
 
-    def deserialize(self, value: Any) -> Any:
+    @staticmethod
+    def deserialize(value: Any) -> Any:
         """JSON values are already deserialized."""
         return value
 
@@ -125,7 +133,7 @@ class ScalarRegistry:
 
         handler = registry.get("DateTime")
         if handler:
-            python_type = handler.python_type  # "datetime"
+            python_type = handler.python_type # "datetime"
     """
 
     def __init__(self):
@@ -156,4 +164,3 @@ class ScalarRegistry:
     def get_all_imports(self) -> set:
         """Get all import statements needed for registered handlers."""
         return {h.import_statement for h in self._handlers.values()}
-

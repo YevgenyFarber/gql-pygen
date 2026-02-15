@@ -22,7 +22,7 @@ class Auth(Protocol):
 
             def get_headers(self) -> dict[str, str]:
                 return {
-                    "Authorization": f"Bearer {self.token}",
+                    "Authorization": f "Bearer {self.token}",
                     "X-Org-ID": self.org_id,
                 }
     """
@@ -91,7 +91,7 @@ class BasicAuth:
 
 
 class HeaderAuth:
-    """Custom headers authentication.
+    """Custom headers' authentication.
 
     Args:
         headers: Dictionary of headers to include
@@ -113,6 +113,6 @@ class HeaderAuth:
 class NoAuth:
     """No authentication (for public APIs or testing)."""
 
-    def get_headers(self) -> dict[str, str]:
+    @staticmethod
+    def get_headers() -> dict[str, str]:
         return {}
-

@@ -165,7 +165,7 @@ class ClientGenerator:
         optional_params: list[str] = []
 
         # Python reserved keywords that need to be escaped
-        RESERVED_KEYWORDS = {
+        reserved_keywords = {
             "from", "import", "class", "def", "return", "yield", "raise",
             "try", "except", "finally", "with", "as", "pass", "break",
             "continue", "if", "elif", "else", "for", "while", "and", "or",
@@ -188,7 +188,7 @@ class ClientGenerator:
             param_name = to_snake_case(var_name)
 
             # Escape Python reserved keywords
-            if param_name in RESERVED_KEYWORDS:
+            if param_name in reserved_keywords:
                 param_name = f"{param_name}_"
 
             arg_to_param.append((arg, param_name, var_name))
@@ -261,7 +261,8 @@ class ClientGenerator:
 
         return lines
 
-    def _arg_type_hint(self, arg) -> str:
+    @staticmethod
+    def _arg_type_hint(arg) -> str:
         """Get Python type hint for an argument."""
         # Map GraphQL types to Python types
         type_map = {
@@ -278,7 +279,8 @@ class ClientGenerator:
             return f"List[{base_type}]"
         return base_type
 
-    def _type_to_var_suffix(self, type_name: str) -> str:
+    @staticmethod
+    def _type_to_var_suffix(type_name: str) -> str:
         """Convert a type name to a variable name suffix (matching QueryBuilder)."""
         name = type_name
         for suffix in ("Input", "Mutation", "Payload"):
@@ -345,4 +347,3 @@ class ClientGenerator:
         lines.append("")
 
         return lines
-

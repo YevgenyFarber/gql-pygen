@@ -98,7 +98,7 @@ class IROperation:
     parent_arguments: list[IRArgument] = field(default_factory=list)
 
     def __post_init__(self):
-        # If path is empty, set it to just the operation name
+        # If a path is empty, set it to just the operation name
         if not self.path:
             self.path = [self.name]
 
@@ -158,7 +158,7 @@ class IRSchema:
         """Return all queries and mutations."""
         return self.queries + self.mutations
 
-    def is_namespace_type(self, type_name: str) -> bool:
+    @staticmethod
+    def is_namespace_type(type_name: str) -> bool:
         """Check if a type is a namespace type (ends with Mutations or Queries)."""
         return type_name.endswith("Mutations") or type_name.endswith("Queries")
-
