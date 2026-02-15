@@ -276,6 +276,7 @@ class TestFullGeneration:
 
         assert "from __future__ import annotations" in code
         assert "from typing import" in code
+        assert "from .auth import Auth, ApiKeyAuth" in code
         assert "from .query_builder import FieldSelection" in code
         assert "from .executor import GraphQLExecutor" in code
         assert "from ..models import *" in code
@@ -286,7 +287,11 @@ class TestFullGeneration:
         code = gen.generate_client_code()
 
         assert "class GraphQLClient:" in code
-        assert "def __init__(self, url: str, api_key: str):" in code
+        # New auth-aware signature
+        assert "def __init__(" in code
+        assert "url: str," in code
+        assert "auth: Optional[Auth] = None," in code
+        assert "api_key: Optional[str] = None," in code
         assert "async def close(self):" in code
         assert "async def __aenter__(self):" in code
         assert "async def __aexit__(self" in code

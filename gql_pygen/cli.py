@@ -53,12 +53,18 @@ def main():
     help="Output directory for generated code.",
 )
 @click.option(
+    "--templates",
+    "-t",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Custom template directory (overrides built-in templates).",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
     help="Enable verbose output.",
 )
-def generate(schema: str, output: str, verbose: bool):
+def generate(schema: str, output: str, templates: str, verbose: bool):
     """Generate Python code from GraphQL schema.
 
     Examples:
@@ -67,10 +73,11 @@ def generate(schema: str, output: str, verbose: bool):
 
         gql-pygen generate -s ./schema.graphqls -o ./client
 
-        gql-pygen generate -s ./schema.tgz -o ./generated
+        gql-pygen generate -s ./schema.tgz -o ./generated --templates ./my_templates
     """
     schema_path = Path(schema).resolve()
     output_path = Path(output).resolve()
+    template_dir = Path(templates).resolve() if templates else None
     temp_dir = None
 
     try:
@@ -88,6 +95,8 @@ def generate(schema: str, output: str, verbose: bool):
         if verbose:
             click.echo(f"Schema: {actual_schema_path}")
             click.echo(f"Output: {output_path}")
+            if template_dir:
+                click.echo(f"Templates: {template_dir}")
 
         # Parse schema
         click.echo("Parsing schema...")
@@ -105,7 +114,10 @@ def generate(schema: str, output: str, verbose: bool):
 
         # Generate code
         click.echo("Generating code...")
-        generator = CodeGenerator(ir, str(output_path))
+        generator = CodeGenerator(
+            ir, str(output_path),
+            template_dir=str(template_dir) if template_dir else None
+        )
         generator.generate()
 
         click.echo(f"Done! Generated code in {output_path}")

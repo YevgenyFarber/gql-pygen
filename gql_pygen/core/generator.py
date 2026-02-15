@@ -1,14 +1,22 @@
 """Code generator for GraphQL schemas.
 
 Renders Jinja2 templates to produce Python code from IR.
+
+Supports custom templates via the template_dir parameter:
+    generator = CodeGenerator(ir, output_dir, template_dir="./my_templates")
+
+Template lookup order:
+1. User's template directory (if provided)
+2. Package default templates
 """
 
 import ast
 import os
 import re
-from typing import Any, Dict, Set
+from pathlib import Path
+from typing import Any, Dict, Optional, Set
 
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import ChoiceLoader, Environment, FileSystemLoader, PackageLoader, select_autoescape
 
 from .ir import IRSchema
 
@@ -78,16 +86,57 @@ def safe_param_name(name: str) -> str:
 
 
 class CodeGenerator:
-    """Generates Python code from GraphQL IR."""
+    """Generates Python code from GraphQL IR.
+
+    Supports custom templates via the template_dir parameter.
+    Templates in template_dir take precedence over built-in templates.
+
+    Available templates to override:
+        - models.py.j2 — Pydantic model generation
+        - enums.py.j2 — Enum generation
+        - scalars.py.j2 — Scalar type definitions
+        - client.py.j2 — Client class generation
+        - base_client.py.j2 — Base client template
+
+    Example:
+        generator = CodeGenerator(
+            ir=schema,
+            output_dir="./generated",
+            template_dir="./my_templates"
+        )
+    """
 
     # Maximum depth for field expansion in queries
     MAX_FIELD_DEPTH = 2
 
-    def __init__(self, ir: IRSchema, output_dir: str):
+    def __init__(
+        self,
+        ir: IRSchema,
+        output_dir: str,
+        template_dir: Optional[str] = None,
+    ):
+        """Initialize the code generator.
+
+        Args:
+            ir: The intermediate representation of the GraphQL schema
+            output_dir: Directory where generated code will be written
+            template_dir: Optional directory with custom Jinja2 templates.
+                          Templates here override the built-in templates.
+        """
         self.ir = ir
         self.output_dir = output_dir
+        self.template_dir = template_dir
+
+        # Build template loader - custom templates take precedence
+        loaders = []
+        if template_dir:
+            template_path = Path(template_dir)
+            if template_path.is_dir():
+                loaders.append(FileSystemLoader(str(template_path)))
+        loaders.append(PackageLoader("gql_pygen", "templates"))
+
         self.env = Environment(
-            loader=PackageLoader("gql_pygen", "templates"),
+            loader=ChoiceLoader(loaders),
             autoescape=select_autoescape(),
         )
         # Register custom filters
