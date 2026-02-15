@@ -121,7 +121,7 @@ class QueryBuilder:
         for arg in operation.all_arguments:
             var_name = arg.name
             if var_name in seen_names:
-                # Create unique name based on type
+                # Create a unique name based on the type
                 var_name = f"{arg.name}_{self._type_to_var_suffix(arg.type_name)}"
             seen_names.add(var_name)
             mapping.append((arg, var_name))
@@ -133,7 +133,7 @@ class QueryBuilder:
         operation: IROperation,
         fields: FieldSelection,
     ) -> str:
-        """Build the body of the operation with nested path."""
+        """Build the body of the operation with a nested path."""
         indent = "  "
         lines = []
 
@@ -184,20 +184,22 @@ class QueryBuilder:
 
         return "\n".join(lines)
 
-    def _build_field_arguments(self, args: list) -> str:
+    @staticmethod
+    def _build_field_arguments(args: list) -> str:
         """Build argument string for a field: (accountId: $accountId, input: $input)"""
         if not args:
             return ""
 
         arg_strs = []
         for arg in args:
-            # Use the argument name as variable name (for simple cases)
+            # Use the argument name as a variable name (for simple cases)
             arg_strs.append(f"{arg.name}: ${arg.name}")
 
         return f"({', '.join(arg_strs)})"
 
-    def _build_field_arguments_with_mapping(self, args: list, var_name_by_arg: dict[int, str]) -> str:
-        """Build argument string using variable mapping for duplicate handling."""
+    @staticmethod
+    def _build_field_arguments_with_mapping(args: list, var_name_by_arg: dict[int, str]) -> str:
+        """Build an argument string using variable mapping for duplicate handling."""
         if not args:
             return ""
 
@@ -237,7 +239,8 @@ class QueryBuilder:
         else:  # ALL
             return self._build_all_fields(type_def, indent, depth, fields)
 
-    def _build_minimal_fields(self, type_def: IRType, indent: str) -> str:
+    @staticmethod
+    def _build_minimal_fields(type_def: IRType, indent: str) -> str:
         """Build minimal field selection (id + __typename)."""
         lines = [f"{indent}__typename"]
 
@@ -270,7 +273,7 @@ class QueryBuilder:
                     current[part] = {}
                 current = current[part]
 
-        # Build fields from tree
+        # Build fields from a tree
         for ir_field in type_def.fields:
             if ir_field.name in field_tree or "*" in field_tree:
                 if self._is_scalar(ir_field.type_name):
@@ -318,7 +321,7 @@ class QueryBuilder:
             if self._is_scalar(ir_field.type_name):
                 lines.append(f"{indent}{ir_field.name}")
             else:
-                # Check if nested type exists
+                # Check if a nested type exists
                 nested_type = self.schema.get_type_by_name(ir_field.type_name)
                 if nested_type and depth < fields.max_depth:
                     lines.append(f"{indent}{ir_field.name} {{")
@@ -328,7 +331,7 @@ class QueryBuilder:
                     lines.append(f"{indent}}}")
                 else:
                     # Too deep or unknown type - just get __typename
-                    lines.append(f"{indent}{field.name} {{ __typename }}")
+                    lines.append(f"{indent}{ir_field.name} {{ __typename }}")
 
         return "\n".join(lines) if lines else f"{indent}__typename"
 
@@ -336,11 +339,13 @@ class QueryBuilder:
         """Check if a type is a scalar (no subfields)."""
         return type_name in self._scalar_types
 
-    def _to_pascal_case(self, snake_str: str) -> str:
+    @staticmethod
+    def _to_pascal_case(snake_str: str) -> str:
         """Convert snake_case to PascalCase for operation names."""
         return "".join(word.capitalize() for word in snake_str.split("_"))
 
-    def _type_to_var_suffix(self, type_name: str) -> str:
+    @staticmethod
+    def _type_to_var_suffix(type_name: str) -> str:
         """Convert a type name to a variable name suffix."""
         # Remove common suffixes for cleaner names
         name = type_name
@@ -348,4 +353,3 @@ class QueryBuilder:
             if name.endswith(suffix):
                 name = name[:-len(suffix)]
         return name[0].lower() + name[1:] if name else "arg"
-
