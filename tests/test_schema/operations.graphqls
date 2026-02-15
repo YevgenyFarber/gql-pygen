@@ -1,0 +1,39 @@
+# Queries and Mutations
+
+"""Input for creating a new account"""
+input CreateAccountInput {
+    name: String!
+    description: String
+    ownerId: ID!
+}
+
+"""Input for updating an account"""
+input UpdateAccountInput {
+    id: ID!
+    name: String
+    description: String
+    status: AccountStatus
+}
+
+type Query {
+    """Get account by ID"""
+    account(accountId: ID!): AccountRef
+
+    """List all accounts"""
+    accounts(status: AccountStatus, limit: Int): [AccountRef!]!
+
+    """Get user by ID"""
+    user(userId: ID!): UserRef
+}
+
+type Mutation {
+    """Create a new account"""
+    createAccount(input: CreateAccountInput!): AccountRef!
+
+    """Update an existing account"""
+    updateAccount(input: UpdateAccountInput!): AccountRef
+
+    """Delete an account"""
+    deleteAccount(accountId: ID!): Boolean!
+}
+
