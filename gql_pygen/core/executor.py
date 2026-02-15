@@ -124,7 +124,7 @@ class GraphQLExecutor:
         """
         client = await self._get_client()
 
-        payload = {"query": query}
+        payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = self._serialize_variables(variables)
 
