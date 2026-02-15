@@ -64,6 +64,8 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "F403",   # star imports (intentional for generated models)
+    "F405",   # undefined name from star import (side effect of F403)
 ]
 
 [tool.ruff.lint.isort]
