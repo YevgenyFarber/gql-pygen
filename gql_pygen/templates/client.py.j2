@@ -52,11 +52,23 @@ class {{ client_name }}Client:
         variables = {k: v for k, v in variables.items() if v is not None}
         result = self.client.execute(query, variables)
         data = result.get("{{ op.name }}")
+{%- if op.is_return_optional %}
         if data is None:
             return None
+{%- endif %}
+{#- Scalar types don't have model_validate - return data directly -#}
+{%- set scalar_types = ['String', 'Int', 'Float', 'Boolean', 'ID', 'MacAddress', 'IPAddress', 'IPRange', 'IPSubnet', 'NetworkSubnet', 'Port', 'PortRange', 'DateTime', 'Date', 'Time', 'Timestamp', 'Url', 'Email', 'Asn', 'Json', 'Object', 'Map'] %}
+{%- if op.return_type in scalar_types %}
 {%- if op.is_return_list %}
-        return [{{ op.return_type }}.model_validate(item) for item in data]
+        return data if data is not None else []
+{%- else %}
+        return data
+{%- endif %}
+{%- else %}
+{%- if op.is_return_list %}
+        return [{{ op.return_type }}.model_validate(item) for item in data] if data is not None else []
 {%- else %}
         return {{ op.return_type }}.model_validate(data)
+{%- endif %}
 {%- endif %}
 {%- endfor %}
