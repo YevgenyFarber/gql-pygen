@@ -5,9 +5,9 @@ from enum import Enum
 {% for enum in enums %}
 class {{ enum.name }}(str, Enum):
     """{{ enum.description or enum.name }}"""
-    {% for value in enum.values %}
+{%- for value in enum.values %}
     {{ value.name | upper_case }}{% if value.name | upper_case in ['FROM', 'TO', 'CLASS', 'DEF', 'RETURN', 'IMPORT', 'AS', 'IF', 'ELSE', 'ELIF', 'FOR', 'WHILE', 'TRY', 'EXCEPT', 'FINALLY', 'WITH', 'YIELD', 'LAMBDA', 'NOT', 'AND', 'OR', 'IS', 'IN', 'GLOBAL', 'NONLOCAL', 'ASSERT', 'BREAK', 'CONTINUE', 'PASS', 'DEL', 'RAISE', 'NONE', 'TRUE', 'FALSE'] %}_{% endif %} = "{{ value.name }}"
-    {% endfor %}
+{%- endfor %}
 
 {% endfor %}
 

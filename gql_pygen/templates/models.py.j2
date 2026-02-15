@@ -7,8 +7,10 @@ IMPORTANT: Call ensure_models_rebuilt() before using models with forward referen
 """
 
 from __future__ import annotations
-from typing import Optional, List, Any, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field, ConfigDict
+
 from ..scalars import *
 from ..enums import *
 
@@ -77,8 +79,15 @@ if TYPE_CHECKING:
 {%- endmacro -%}
 
 {# Macro for field type annotation - ALL fields are Optional for automation #}
+{# Basic types (str, int, float, bool) don't need quotes. Other types need quotes for forward refs. #}
+{%- set BASIC_TYPES = ['str', 'int', 'float', 'bool'] -%}
 {%- macro field_type(field) -%}
-Optional[{% if field.is_list %}List["{{ python_type(field.full_type_name) }}"]{% else %}"{{ python_type(field.full_type_name) }}"{% endif %}]
+{%- set py_type = python_type(field.full_type_name) -%}
+{%- if field.is_list -%}
+{%- if py_type in BASIC_TYPES %}list[{{ py_type }}]{% else %}list["{{ py_type }}"]{% endif -%}
+{%- else -%}
+{%- if py_type in BASIC_TYPES %}{{ py_type }}{% else %}"{{ py_type }}"{% endif -%}
+{%- endif %} | None
 {%- endmacro -%}
 
 {# Macro for field default value #}
@@ -91,21 +100,20 @@ Optional[{% if field.is_list %}List["{{ python_type(field.full_type_name) }}"]{%
 class {{ interface.name }}(BaseModel):
     """{{ (interface.description or interface.name)|safe_docstring }}"""
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
-    {% for field in interface.fields %}
+{%- for field in interface.fields %}
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
-    {% endfor %}
+{%- endfor %}
 
 {% endfor %}
-
 {# Generate types with interface inheritance #}
 {% for type in types %}
-{# Build inheritance list: interfaces first, then BaseModel as fallback #}
+{#- Build inheritance list: interfaces first, then BaseModel as fallback -#}
 {%- set base_classes = type.full_interfaces if type.full_interfaces else ['BaseModel'] -%}
 class {{ type.name }}({{ base_classes | join(', ') }}):
     """{{ (type.description or type.name)|safe_docstring }}"""
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
-    {% for field in type.fields %}
-    {# Skip fields inherited from interfaces #}
+{%- for field in type.fields %}
+    {#- Skip fields inherited from interfaces -#}
     {%- set inherited_fields = [] -%}
     {%- for iface_name in type.interfaces -%}
         {%- if iface_name in interface_fields -%}
@@ -116,8 +124,8 @@ class {{ type.name }}({{ base_classes | join(', ') }}):
     {%- endfor -%}
     {%- if field.name not in inherited_fields %}
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
-    {%- endif %}
-    {% endfor %}
+    {%- endif -%}
+{%- endfor %}
 
 {% endfor %}
 

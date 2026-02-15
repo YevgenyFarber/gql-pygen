@@ -5,7 +5,7 @@ client implementations must satisfy.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class GraphQLClient(ABC):
@@ -19,9 +19,9 @@ class GraphQLClient(ABC):
     def execute(
         self,
         query: str,
-        variables: Optional[Dict[str, Any]] = None,
-        operation_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any] | None = None,
+        operation_name: str | None = None,
+    ) -> dict[str, Any]:
         """Execute a GraphQL query/mutation.
 
         Args:
