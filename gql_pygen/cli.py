@@ -1,15 +1,16 @@
 """Command-line interface for gql-pygen."""
 
-import click
 import shutil
 import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
 
-from .core.parser import SchemaParser
-from .core.generator import CodeGenerator
+import click
+
 from .core.client_generator import ClientGenerator
+from .core.generator import CodeGenerator
+from .core.parser import SchemaParser
 
 
 def extract_archive(archive_path: Path) -> str:

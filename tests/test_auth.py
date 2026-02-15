@@ -1,7 +1,6 @@
 """Tests for authentication handlers."""
 
 import base64
-import pytest
 
 from gql_pygen.core.auth import (
     ApiKeyAuth,
@@ -52,7 +51,7 @@ class TestBasicAuth:
         """Test basic auth encoding."""
         auth = BasicAuth("user", "pass")
         headers = auth.get_headers()
-        
+
         # Verify the encoding
         expected = base64.b64encode(b"user:pass").decode()
         assert headers == {"Authorization": f"Basic {expected}"}
@@ -61,7 +60,7 @@ class TestBasicAuth:
         """Test basic auth with special characters."""
         auth = BasicAuth("user@domain.com", "p@ss:word!")
         headers = auth.get_headers()
-        
+
         expected = base64.b64encode(b"user@domain.com:p@ss:word!").decode()
         assert headers == {"Authorization": f"Basic {expected}"}
 
@@ -95,7 +94,7 @@ class TestHeaderAuth:
         auth = HeaderAuth(original)
         headers = auth.get_headers()
         headers["X-New"] = "new"
-        
+
         # Original should not be modified
         assert "X-New" not in auth.get_headers()
 
@@ -143,7 +142,7 @@ class TestAuthProtocol:
         class CustomAuth:
             def get_headers(self):
                 return {"X-Custom": "value"}
-        
+
         auth = CustomAuth()
         assert isinstance(auth, Auth)
         assert auth.get_headers() == {"X-Custom": "value"}

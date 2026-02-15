@@ -8,6 +8,15 @@ from .auth import (
     HeaderAuth,
     NoAuth,
 )
+from .client_generator import ClientGenerator
+from .executor import GraphQLError, GraphQLExecutor
+from .hooks import (
+    AddHeaderHook,
+    FilterTypesHook,
+    HookRunner,
+    PostGenerateHook,
+    PreGenerateHook,
+)
 from .ir import (
     IRArgument,
     IREnum,
@@ -21,8 +30,6 @@ from .ir import (
 )
 from .parser import SchemaParser
 from .query_builder import FieldSelection, FieldSelectionMode, QueryBuilder
-from .executor import GraphQLError, GraphQLExecutor
-from .client_generator import ClientGenerator
 from .scalars import (
     DateHandler,
     DateTimeHandler,
@@ -30,13 +37,6 @@ from .scalars import (
     ScalarHandler,
     ScalarRegistry,
     UUIDHandler,
-)
-from .hooks import (
-    AddHeaderHook,
-    FilterTypesHook,
-    HookRunner,
-    PostGenerateHook,
-    PreGenerateHook,
 )
 
 __all__ = [

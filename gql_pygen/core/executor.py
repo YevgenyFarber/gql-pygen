@@ -3,7 +3,7 @@
 Handles HTTP communication, error handling, and response parsing.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import httpx
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ from .query_builder import FieldSelection, QueryBuilder
 class GraphQLError(Exception):
     """Exception raised for GraphQL errors."""
 
-    def __init__(self, message: str, errors: List[Dict[str, Any]]):
+    def __init__(self, message: str, errors: list[dict[str, Any]]):
         self.message = message
         self.errors = errors
         super().__init__(message)
@@ -42,10 +42,10 @@ class GraphQLExecutor:
     def __init__(
         self,
         url: str,
-        auth: Optional[Auth] = None,
+        auth: Auth | None = None,
         *,
-        api_key: Optional[str] = None,  # Deprecated: use auth=ApiKeyAuth(key)
-        schema: Optional[IRSchema] = None,
+        api_key: str | None = None,  # Deprecated: use auth=ApiKeyAuth(key)
+        schema: IRSchema | None = None,
         timeout: float = 30.0,
     ):
         """Initialize the executor.
@@ -59,8 +59,8 @@ class GraphQLExecutor:
         """
         self.url = url
         self.timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
-        self._query_builder: Optional[QueryBuilder] = None
+        self._client: httpx.AsyncClient | None = None
+        self._query_builder: QueryBuilder | None = None
 
         # Handle auth - support both new auth parameter and legacy api_key
         if auth is not None:
@@ -72,20 +72,20 @@ class GraphQLExecutor:
             raise ValueError("Either 'auth' or 'api_key' must be provided")
 
         # Operation lookup by path
-        self._operations: Dict[tuple, IROperation] = {}
+        self._operations: dict[tuple, IROperation] = {}
 
         if schema:
             self._init_schema(schema)
-    
+
     def _init_schema(self, schema: IRSchema):
         """Initialize query builder and operation lookup from schema."""
         self.schema = schema
         self._query_builder = QueryBuilder(schema)
-        
+
         # Build operation lookup
         for op in schema.queries + schema.mutations:
             self._operations[tuple(op.path)] = op
-    
+
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the HTTP client."""
         if self._client is None:
@@ -98,82 +98,82 @@ class GraphQLExecutor:
                 headers=headers,
             )
         return self._client
-    
+
     async def close(self):
         """Close the HTTP client."""
         if self._client:
             await self._client.aclose()
             self._client = None
-    
+
     async def execute(
         self,
         query: str,
-        variables: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute a raw GraphQL query.
-        
+
         Args:
             query: GraphQL query string
             variables: Query variables
-            
+
         Returns:
             The 'data' portion of the response
-            
+
         Raises:
             GraphQLError: If the response contains errors
         """
         client = await self._get_client()
-        
+
         payload = {"query": query}
         if variables:
             payload["variables"] = self._serialize_variables(variables)
-        
+
         response = await client.post(self.url, json=payload)
         response.raise_for_status()
-        
+
         result = response.json()
-        
+
         if "errors" in result:
             error_messages = "; ".join(e.get("message", str(e)) for e in result["errors"])
             raise GraphQLError(f"GraphQL errors: {error_messages}", result["errors"])
-        
+
         return result.get("data", {})
-    
+
     async def execute_operation(
         self,
-        operation_path: List[str],
-        variables: Dict[str, Any],
+        operation_path: list[str],
+        variables: dict[str, Any],
         fields: FieldSelection = FieldSelection.ALL,
     ) -> Any:
         """Execute an operation by its path.
-        
+
         Args:
             operation_path: Path like ['policy', 'internetFirewall', 'addRule']
             variables: Operation variables
             fields: Field selection mode
-            
+
         Returns:
             The operation result (extracted from nested response)
         """
         if not self._query_builder:
             raise RuntimeError("Schema not initialized. Call _init_schema first.")
-        
+
         # Look up the operation
         op_key = tuple(operation_path)
         operation = self._operations.get(op_key)
         if not operation:
             raise ValueError(f"Unknown operation: {'.'.join(operation_path)}")
-        
+
         # Build the query
         query = self._query_builder.build(operation, fields)
-        
+
         # Execute
         data = await self.execute(query, variables)
-        
+
         # Extract the nested result
         return self._extract_path(data, operation_path)
-    
-    def _extract_path(self, data: Dict[str, Any], path: List[str]) -> Any:
+
+    def _extract_path(self, data: dict[str, Any], path: list[str]) -> Any:
         """Extract nested data at the given path."""
         result = data
         for segment in path:
@@ -185,7 +185,7 @@ class GraphQLExecutor:
                 return None
         return result
 
-    def _serialize_variables(self, variables: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_variables(self, variables: dict[str, Any]) -> dict[str, Any]:
         """Serialize variables for the GraphQL request.
 
         Handles Pydantic models by converting them to dicts.

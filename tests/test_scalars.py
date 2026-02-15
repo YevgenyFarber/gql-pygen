@@ -3,8 +3,6 @@
 from datetime import date, datetime
 from uuid import UUID
 
-import pytest
-
 from gql_pygen.core.scalars import (
     DateHandler,
     DateTimeHandler,

@@ -14,7 +14,7 @@ import ast
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader, PackageLoader, select_autoescape
 
@@ -113,7 +113,7 @@ class CodeGenerator:
         self,
         ir: IRSchema,
         output_dir: str,
-        template_dir: Optional[str] = None,
+        template_dir: str | None = None,
     ):
         """Initialize the code generator.
 
@@ -218,7 +218,7 @@ class CodeGenerator:
         self._generate_init_files()
 
     def _generate_file(
-        self, template_name: str, output_path: str, context: Dict[str, Any]
+        self, template_name: str, output_path: str, context: dict[str, Any]
     ):
         """Render a template and write to file."""
         template = self.env.get_template(template_name)
@@ -241,7 +241,7 @@ class CodeGenerator:
 
     def _generate_models(self):
         """Generate model files, organized by source schema file."""
-        models_by_file: Dict[str, Dict] = {}
+        models_by_file: dict[str, dict] = {}
 
         for type_name, file_name in self.ir.type_to_file.items():
             base_name = (
@@ -273,14 +273,14 @@ class CodeGenerator:
             self._generate_file("models.py.j2", f"models/{base_name}.py", content)
 
     def _prepare_model_context(
-        self, base_name: str, content: Dict, all_models: Dict
+        self, base_name: str, content: dict, all_models: dict
     ):
         """Prepare cross-module imports and full type names."""
         local_types = {t.name for t in content["types"]} | {
             i.name for i in content["interfaces"]
         }
-        type_to_module: Dict[str, str] = {}
-        external_deps: Set[tuple] = set()
+        type_to_module: dict[str, str] = {}
+        external_deps: set[tuple] = set()
 
         # Find external dependencies
         for type_name in local_types:
@@ -325,7 +325,7 @@ class CodeGenerator:
                     field.full_type_name = field.type_name
 
         # Group imports by file
-        imports_by_file: Dict[str, list] = {}
+        imports_by_file: dict[str, list] = {}
         for dep_base, dep_type in external_deps:
             if dep_base not in imports_by_file:
                 imports_by_file[dep_base] = []
@@ -335,7 +335,7 @@ class CodeGenerator:
 
     def _generate_clients(self):
         """Generate client files grouped by operation domain."""
-        clients: Dict[str, list] = {}
+        clients: dict[str, list] = {}
         for op in self.ir.queries + self.ir.mutations:
             domain = op.name.split("_")[0] if "_" in op.name else op.name[:7]
             if domain not in clients:

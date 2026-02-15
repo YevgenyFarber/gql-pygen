@@ -63,7 +63,7 @@ class TestFilterTypesHook:
     def test_exclude_prefix(self, sample_ir):
         hook = FilterTypesHook(exclude_prefix="_")
         result = hook.pre_generate(sample_ir)
-        
+
         type_names = [t.name for t in result.types]
         assert "User" in type_names
         assert "Product" in type_names
@@ -72,14 +72,14 @@ class TestFilterTypesHook:
     def test_exclude_suffix(self, sample_ir):
         hook = FilterTypesHook(exclude_suffix="Input")
         result = hook.pre_generate(sample_ir)
-        
+
         input_names = [i.name for i in result.inputs]
         assert len(input_names) == 0  # All inputs end with "Input"
 
     def test_include_prefix(self, sample_ir):
         hook = FilterTypesHook(include_prefix="Create")
         result = hook.pre_generate(sample_ir)
-        
+
         input_names = [i.name for i in result.inputs]
         assert "CreateUserInput" in input_names
         assert "_DebugInput" not in input_names
@@ -87,7 +87,7 @@ class TestFilterTypesHook:
     def test_filters_enums(self, sample_ir):
         hook = FilterTypesHook(exclude_prefix="_")
         result = hook.pre_generate(sample_ir)
-        
+
         enum_names = [e.name for e in result.enums]
         assert "Status" in enum_names
         assert "_Internal" not in enum_names
@@ -99,7 +99,7 @@ class TestHookRunner:
     def test_run_pre_hooks(self, sample_ir):
         runner = HookRunner()
         runner.add_pre_hook(FilterTypesHook(exclude_prefix="_"))
-        
+
         result = runner.run_pre_hooks(sample_ir)
         type_names = [t.name for t in result.types]
         assert "_Meta" not in type_names
@@ -107,21 +107,21 @@ class TestHookRunner:
     def test_run_post_hooks(self):
         runner = HookRunner()
         runner.add_post_hook(AddHeaderHook("# Header"))
-        
+
         result = runner.run_post_hooks("test.py", "code")
         assert result.startswith("# Header")
 
     def test_multiple_pre_hooks(self, sample_ir):
         runner = HookRunner()
         runner.add_pre_hook(FilterTypesHook(exclude_prefix="_"))
-        
+
         class CountTypesHook:
             def pre_generate(self, ir):
                 ir.type_count = len(ir.types)
                 return ir
-        
+
         runner.add_pre_hook(CountTypesHook())
-        
+
         result = runner.run_pre_hooks(sample_ir)
         assert result.type_count == 2  # User and Product (after filtering)
 
@@ -129,7 +129,7 @@ class TestHookRunner:
         runner = HookRunner()
         runner.add_post_hook(AddHeaderHook("# Line 1"))
         runner.add_post_hook(AddHeaderHook("# Line 0"))
-        
+
         result = runner.run_post_hooks("test.py", "code")
         # Both headers should be present (second wraps first)
         assert "# Line 0" in result
@@ -149,13 +149,13 @@ class TestProtocolCompliance:
         class CustomPreHook:
             def pre_generate(self, ir):
                 return ir
-        
+
         assert isinstance(CustomPreHook(), PreGenerateHook)
 
     def test_custom_post_hook(self):
         class CustomPostHook:
             def post_generate(self, filename, content):
                 return content
-        
+
         assert isinstance(CustomPostHook(), PostGenerateHook)
 

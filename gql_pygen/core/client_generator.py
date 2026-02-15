@@ -5,9 +5,8 @@ Generates a nested client structure like:
 """
 
 import re
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from .ir import IROperation, IRSchema
 
@@ -17,10 +16,10 @@ class ClientNode:
     """Represents a node in the client hierarchy."""
     name: str  # e.g., "policy", "internetFirewall"
     snake_name: str  # e.g., "policy", "internet_firewall"
-    children: Dict[str, "ClientNode"] = field(default_factory=dict)
-    operations: List[IROperation] = field(default_factory=list)
-    
-    def add_operation(self, path: List[str], operation: IROperation):
+    children: dict[str, "ClientNode"] = field(default_factory=dict)
+    operations: list[IROperation] = field(default_factory=list)
+
+    def add_operation(self, path: list[str], operation: IROperation):
         """Add an operation at the given path."""
         if len(path) == 1:
             # This is the leaf - add the operation here
@@ -58,17 +57,17 @@ class ClientGenerator:
         self.query_tree = ClientNode(name="Query", snake_name="query")
         self.mutation_tree = ClientNode(name="Mutation", snake_name="mutation")
         self._build_trees()
-    
+
     def _build_trees(self):
         """Build client hierarchies from operations."""
         for op in self.schema.queries:
             if len(op.path) > 0:
                 self.query_tree.add_operation(op.path, op)
-        
+
         for op in self.schema.mutations:
             if len(op.path) > 0:
                 self.mutation_tree.add_operation(op.path, op)
-    
+
     def generate_client_code(self) -> str:
         """Generate the complete client module code."""
         lines = [
@@ -83,53 +82,53 @@ class ClientGenerator:
             "from ..models import *  # Import models for runtime model_validate()",
             "",
         ]
-        
+
         # Generate namespace client classes
         generated_classes = set()
-        
+
         # Generate mutation clients
         lines.extend(self._generate_client_classes(
             self.mutation_tree, "Mutation", generated_classes
         ))
-        
+
         # Generate query clients
         lines.extend(self._generate_client_classes(
             self.query_tree, "Query", generated_classes
         ))
-        
+
         # Generate root client
         lines.extend(self._generate_root_client())
-        
+
         return "\n".join(lines)
-    
+
     def _generate_client_classes(
         self,
         node: ClientNode,
         prefix: str,
-        generated: Set[str],
-    ) -> List[str]:
+        generated: set[str],
+    ) -> list[str]:
         """Recursively generate client classes for a node and its children."""
         lines = []
-        
+
         # Generate classes for children first (bottom-up)
         for child_name, child_node in sorted(node.children.items()):
             child_prefix = f"{prefix}_{to_pascal_case(child_name)}"
             lines.extend(self._generate_client_classes(child_node, child_prefix, generated))
-        
+
         # Generate this node's class if it has operations or children
         if node.operations or node.children:
             class_name = f"{prefix}Client"
             if class_name not in generated:
                 generated.add(class_name)
                 lines.extend(self._generate_single_client_class(node, class_name))
-        
+
         return lines
-    
+
     def _generate_single_client_class(
         self,
         node: ClientNode,
         class_name: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate a single client class."""
         lines = [
             f"class {class_name}:",
@@ -139,14 +138,14 @@ class ClientGenerator:
             "        self._executor = executor",
             "        self._query_builder = query_builder",
         ]
-        
+
         # Initialize child clients
         for child_name, child_node in sorted(node.children.items()):
             child_class = f"{class_name[:-6]}_{to_pascal_case(child_name)}Client"
             lines.append(f"        self.{child_node.snake_name} = {child_class}(executor, query_builder)")
-        
+
         lines.append("")
-        
+
         # Generate operation methods
         for op in node.operations:
             lines.extend(self._generate_operation_method(op))
@@ -154,16 +153,16 @@ class ClientGenerator:
         lines.append("")
         return lines
 
-    def _generate_operation_method(self, op: IROperation) -> List[str]:
+    def _generate_operation_method(self, op: IROperation) -> list[str]:
         """Generate an async method for an operation."""
         method_name = to_snake_case(op.name)
 
         # Build parameter list with unique names for duplicates
         # Also compute unique variable names (matching query builder logic)
-        seen_var_names: Set[str] = set()
-        arg_to_param: List[Tuple[Any, str, str]] = []  # (arg, param_name, var_name)
-        required_params: List[str] = []
-        optional_params: List[str] = []
+        seen_var_names: set[str] = set()
+        arg_to_param: list[tuple[Any, str, str]] = []  # (arg, param_name, var_name)
+        required_params: list[str] = []
+        optional_params: list[str] = []
 
         # Python reserved keywords that need to be escaped
         RESERVED_KEYWORDS = {
@@ -175,7 +174,7 @@ class ClientGenerator:
         }
 
         for arg in op.all_arguments:
-            base_param_name = to_snake_case(arg.name)
+            to_snake_case(arg.name)
 
             # Compute unique variable name (matching query builder)
             var_name = arg.name
@@ -232,28 +231,28 @@ class ClientGenerator:
 
         # Get operation reference (we'll need to store ops or look them up)
         lines.append(f"        # Operation path: {op.path}")
-        lines.append(f"        result = await self._executor.execute_operation(")
+        lines.append("        result = await self._executor.execute_operation(")
         lines.append(f'            operation_path={op.path!r},')
-        lines.append(f"            variables=variables,")
-        lines.append(f"            fields=fields,")
-        lines.append(f"        )")
+        lines.append("            variables=variables,")
+        lines.append("            fields=fields,")
+        lines.append("        )")
 
         # Add response parsing with model_validate()
         base_type = op.return_type
         if op.is_return_list and op.is_return_optional:
             # Optional[List[T]] - return None or list of parsed models
-            lines.append(f"        if result is None:")
-            lines.append(f"            return None")
+            lines.append("        if result is None:")
+            lines.append("            return None")
             lines.append(f"        return [{base_type}.model_validate(item) for item in result]")
         elif op.is_return_list:
             # List[T] - return list of parsed models (empty list if None)
-            lines.append(f"        if result is None:")
-            lines.append(f"            return []")
+            lines.append("        if result is None:")
+            lines.append("            return []")
             lines.append(f"        return [{base_type}.model_validate(item) for item in result]")
         elif op.is_return_optional:
             # Optional[T] - return None or parsed model
-            lines.append(f"        if result is None:")
-            lines.append(f"            return None")
+            lines.append("        if result is None:")
+            lines.append("            return None")
             lines.append(f"        return {base_type}.model_validate(result)")
         else:
             # T - return parsed model (required)
@@ -288,7 +287,7 @@ class ClientGenerator:
         # Convert to camelCase
         return name[0].lower() + name[1:] if name else "arg"
 
-    def _generate_root_client(self) -> List[str]:
+    def _generate_root_client(self) -> list[str]:
         """Generate the root client class."""
         lines = [
             f"class {self.client_name}:",
@@ -297,10 +296,10 @@ class ClientGenerator:
             "    Supports pluggable authentication via the Auth protocol.",
             "",
             "    Usage:",
-            f"        # Using API key (backward compatible)",
+            "        # Using API key (backward compatible)",
             f"        client = {self.client_name}(url='https://api.example.com/graphql', api_key='...')",
             "",
-            f"        # Using auth handlers",
+            "        # Using auth handlers",
             f"        client = {self.client_name}(url='...', auth=BearerAuth(token))",
             f"        client = {self.client_name}(url='...', auth=ApiKeyAuth(key, header_name='Authorization'))",
             "",

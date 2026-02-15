@@ -1,15 +1,16 @@
 """Unit tests for the client generator."""
 
 import ast
+
 import pytest
+
 from gql_pygen.core.client_generator import (
     ClientGenerator,
     ClientNode,
-    to_snake_case,
     to_pascal_case,
+    to_snake_case,
 )
-from gql_pygen.core.ir import IRSchema, IROperation, IRArgument
-
+from gql_pygen.core.ir import IRArgument, IROperation, IRSchema
 
 # =============================================================================
 # Fixtures
@@ -144,7 +145,7 @@ class TestClientNode:
         root = ClientNode(name="Root", snake_name="root")
         # Path is ["accountManagement", "addAccount"], so we start at accountManagement
         root.add_operation(["addAccount"], simple_operation)
-        
+
         assert len(root.operations) == 1
         assert root.operations[0].name == "addAccount"
 

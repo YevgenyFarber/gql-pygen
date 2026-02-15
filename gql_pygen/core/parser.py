@@ -4,7 +4,7 @@ Parses .graphqls files and produces an IRSchema.
 """
 
 import os
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from graphql import (
     EnumTypeDefinitionNode,
@@ -60,7 +60,7 @@ class SchemaParser:
         self._discover_nested_operations()
         return self.ir
 
-    def _collect_schema_files(self) -> List[str]:
+    def _collect_schema_files(self) -> list[str]:
         """Collect all .graphqls files from path."""
         files = []
         if os.path.isfile(self.schema_path):
@@ -216,7 +216,7 @@ class SchemaParser:
             )
             self.ir.type_to_file[type_name] = self.current_file
 
-    def _process_fields(self, field_nodes) -> List[IRField]:
+    def _process_fields(self, field_nodes) -> list[IRField]:
         """Process field definitions into IRField list."""
         fields = []
         for node in field_nodes:
@@ -249,7 +249,7 @@ class SchemaParser:
         return fields
 
     def _process_operations(
-        self, node: Union[ObjectTypeDefinitionNode, ObjectTypeExtensionNode]
+        self, node: ObjectTypeDefinitionNode | ObjectTypeExtensionNode
     ):
         """Process Query or Mutation type into operations."""
         op_type = "query" if node.name.value == "Query" else "mutation"
@@ -283,7 +283,7 @@ class SchemaParser:
             else:
                 self.ir.mutations.append(op)
 
-    def _get_type_info(self, type_node) -> Dict[str, Any]:
+    def _get_type_info(self, type_node) -> dict[str, Any]:
         """Extract type name, is_list, and is_optional from type node."""
         is_optional = True
         is_list = False
@@ -323,8 +323,8 @@ class SchemaParser:
                       InternetFirewallPolicyMutations.addRule
         Result: IROperation with path=["policy", "internetFirewall", "addRule"]
         """
-        nested_queries: List[IROperation] = []
-        nested_mutations: List[IROperation] = []
+        nested_queries: list[IROperation] = []
+        nested_mutations: list[IROperation] = []
 
         # Process top-level queries/mutations that return namespace types
         for op in self.ir.queries:
@@ -356,9 +356,9 @@ class SchemaParser:
         self,
         type_name: str,
         op_type: str,
-        path: List[str],
-        parent_args: List[IRArgument],
-        results: List[IROperation]
+        path: list[str],
+        parent_args: list[IRArgument],
+        results: list[IROperation]
     ):
         """Recursively traverse a namespace type to find operations.
 

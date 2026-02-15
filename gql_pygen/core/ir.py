@@ -5,7 +5,7 @@ in a language-agnostic way, suitable for code generation.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 
 @dataclass
@@ -15,8 +15,8 @@ class IRField:
     type_name: str
     is_list: bool = False
     is_optional: bool = True  # True if nullable (no ! in GraphQL)
-    description: Optional[str] = None
-    arguments: List["IRArgument"] = field(default_factory=list)
+    description: str | None = None
+    arguments: list["IRArgument"] = field(default_factory=list)
     # Runtime-populated by generator for cross-module refs
     full_type_name: str = ""
 
@@ -33,49 +33,49 @@ class IRArgument:
     is_list: bool = False
     is_optional: bool = True
     default_value: Any = None
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
 class IREnumValue:
     """Represents a single value in a GraphQL enum."""
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
 class IREnum:
     """Represents a GraphQL enum type."""
     name: str
-    values: List[IREnumValue]
-    description: Optional[str] = None
+    values: list[IREnumValue]
+    description: str | None = None
 
 
 @dataclass
 class IRType:
     """Represents a GraphQL object type or input type."""
     name: str
-    fields: List[IRField]
-    interfaces: List[str] = field(default_factory=list)
-    description: Optional[str] = None
+    fields: list[IRField]
+    interfaces: list[str] = field(default_factory=list)
+    description: str | None = None
     is_input: bool = False
     # Runtime-populated by generator
-    full_interfaces: List[str] = field(default_factory=list)
+    full_interfaces: list[str] = field(default_factory=list)
 
 
 @dataclass
 class IRInterface:
     """Represents a GraphQL interface type."""
     name: str
-    fields: List[IRField]
-    description: Optional[str] = None
+    fields: list[IRField]
+    description: str | None = None
 
 
 @dataclass
 class IRScalar:
     """Represents a GraphQL scalar type."""
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
@@ -87,15 +87,15 @@ class IROperation:
     """
     name: str
     operation_type: str  # 'query' or 'mutation'
-    arguments: List[IRArgument]
+    arguments: list[IRArgument]
     return_type: str
     is_return_list: bool = False
     is_return_optional: bool = True
-    description: Optional[str] = None
+    description: str | None = None
     # Full path from root, e.g., ["policy", "internetFirewall", "addRule"]
-    path: List[str] = field(default_factory=list)
+    path: list[str] = field(default_factory=list)
     # Arguments collected from parent namespace fields (e.g., accountId from policy(accountId))
-    parent_arguments: List[IRArgument] = field(default_factory=list)
+    parent_arguments: list[IRArgument] = field(default_factory=list)
 
     def __post_init__(self):
         # If path is empty, set it to just the operation name
@@ -108,7 +108,7 @@ class IROperation:
         return "_".join(self._to_snake_case(p) for p in self.path)
 
     @property
-    def all_arguments(self) -> List[IRArgument]:
+    def all_arguments(self) -> list[IRArgument]:
         """Return all arguments including parent namespace arguments."""
         return self.parent_arguments + self.arguments
 
@@ -123,19 +123,19 @@ class IROperation:
 @dataclass
 class IRSchema:
     """Complete intermediate representation of a GraphQL schema."""
-    scalars: Dict[str, IRScalar] = field(default_factory=dict)
-    enums: Dict[str, IREnum] = field(default_factory=dict)
-    types: Dict[str, IRType] = field(default_factory=dict)
-    inputs: Dict[str, IRType] = field(default_factory=dict)
-    interfaces: Dict[str, IRInterface] = field(default_factory=dict)
-    queries: List[IROperation] = field(default_factory=list)
-    mutations: List[IROperation] = field(default_factory=list)
+    scalars: dict[str, IRScalar] = field(default_factory=dict)
+    enums: dict[str, IREnum] = field(default_factory=dict)
+    types: dict[str, IRType] = field(default_factory=dict)
+    inputs: dict[str, IRType] = field(default_factory=dict)
+    interfaces: dict[str, IRInterface] = field(default_factory=dict)
+    queries: list[IROperation] = field(default_factory=list)
+    mutations: list[IROperation] = field(default_factory=list)
 
     # Metadata for modularization
-    type_to_file: Dict[str, str] = field(default_factory=dict)
-    dependencies: Dict[str, Set[str]] = field(default_factory=dict)
+    type_to_file: dict[str, str] = field(default_factory=dict)
+    dependencies: dict[str, set[str]] = field(default_factory=dict)
 
-    def get_type_by_name(self, name: str) -> Optional[IRType | IRInterface]:
+    def get_type_by_name(self, name: str) -> IRType | IRInterface | None:
         """Look up a type or interface by name."""
         if name in self.types:
             return self.types[name]
@@ -145,7 +145,7 @@ class IRSchema:
             return self.interfaces[name]
         return None
 
-    def get_all_types(self) -> Dict[str, IRType | IRInterface]:
+    def get_all_types(self) -> dict[str, IRType | IRInterface]:
         """Return all types and interfaces."""
         result = {}
         result.update(self.types)
@@ -154,7 +154,7 @@ class IRSchema:
         return result
 
     @property
-    def all_operations(self) -> List[IROperation]:
+    def all_operations(self) -> list[IROperation]:
         """Return all queries and mutations."""
         return self.queries + self.mutations
 
