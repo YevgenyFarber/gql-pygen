@@ -456,11 +456,13 @@ class CodeGenerator:
 _loaded_modules = {}
 _rebuild_done = False
 
+
 def _load_module(name):
     """Load a submodule and cache it."""
     if name not in _loaded_modules:
         _loaded_modules[name] = importlib.import_module(f".{name}", __name__)
     return _loaded_modules[name]
+
 
 def _rebuild_loaded_models():
     """Rebuild all loaded models to resolve forward references."""
@@ -491,6 +493,7 @@ def _rebuild_loaded_models():
 
     _rebuild_done = True
 
+
 def __getattr__(name):
     """Lazy import of types from submodules."""
     # First check if it's a submodule name
@@ -512,6 +515,7 @@ def __getattr__(name):
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
+
 def __dir__():
     """List all available names including lazy-loaded types."""
     names = list(globals().keys())
@@ -520,6 +524,7 @@ def __dir__():
     for module in _loaded_modules.values():
         names.extend(n for n in dir(module) if not n.startswith('_'))
     return sorted(set(names))
+
 
 # Type checking imports for IDE support
 if TYPE_CHECKING:
