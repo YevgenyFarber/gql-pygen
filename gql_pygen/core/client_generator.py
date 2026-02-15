@@ -76,10 +76,13 @@ class ClientGenerator:
             "from __future__ import annotations",
             "from typing import Any, Dict, List, Optional, Union",
             "",
-            "from .auth import Auth, ApiKeyAuth, BearerAuth, BasicAuth, HeaderAuth, NoAuth",
-            "from .query_builder import FieldSelection, QueryBuilder",
-            "from .executor import GraphQLExecutor",
-            "from ..models import *  # Import models for runtime model_validate()",
+            "# Runtime imports from gql-pygen package",
+            "from gql_pygen.core.auth import Auth, ApiKeyAuth, BearerAuth, BasicAuth, HeaderAuth, NoAuth",
+            "from gql_pygen.core.query_builder import FieldSelection, QueryBuilder",
+            "from gql_pygen.core.executor import GraphQLExecutor",
+            "",
+            "# Import generated models (relative to the generated package)",
+            "from .models import *",
             "",
         ]
 
@@ -173,6 +176,9 @@ class ClientGenerator:
             "False", "None", "async", "await", "type",
         }
 
+        # Track all used param names to avoid collision with our 'fields' parameter
+        used_param_names: set[str] = set()
+
         for arg in op.all_arguments:
             to_snake_case(arg.name)
 
@@ -192,6 +198,7 @@ class ClientGenerator:
                 param_name = f"{param_name}_"
 
             arg_to_param.append((arg, param_name, var_name))
+            used_param_names.add(param_name)
             type_hint = self._arg_type_hint(arg)
 
             if arg.is_optional:
@@ -199,9 +206,14 @@ class ClientGenerator:
             else:
                 required_params.append(f"{param_name}: {type_hint}")
 
+        # Determine field selection parameter name (avoid collision with operation arguments)
+        field_selection_param = "fields"
+        if "fields" in used_param_names:
+            field_selection_param = "field_selection"
+
         # Build final params list: self, required, optional, fields
         params = ["self"] + required_params + optional_params
-        params.append("fields: FieldSelection = FieldSelection.ALL")
+        params.append(f"{field_selection_param}: FieldSelection = FieldSelection.ALL")
 
         # Return type
         return_type = op.return_type
@@ -234,7 +246,7 @@ class ClientGenerator:
         lines.append("        result = await self._executor.execute_operation(")
         lines.append(f'            operation_path={op.path!r},')
         lines.append("            variables=variables,")
-        lines.append("            fields=fields,")
+        lines.append(f"            fields={field_selection_param},")
         lines.append("        )")
 
         # Add response parsing with model_validate()

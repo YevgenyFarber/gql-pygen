@@ -63,13 +63,20 @@ class SchemaParser:
         return self.ir
 
     def _collect_schema_files(self) -> list[str]:
-        """Collect all .graphqls files from path."""
+        """Collect all .graphqls files from path.
+
+        Excludes directories named 'public_gen' which typically contain
+        merged/generated schemas that would cause duplicate definitions.
+        """
         files = []
         if os.path.isfile(self.schema_path):
             if self.schema_path.endswith(".graphqls"):
                 files.append(self.schema_path)
         else:
             for root, _, filenames in os.walk(self.schema_path):
+                # Skip directories that contain merged/generated schemas
+                if "public_gen" in root:
+                    continue
                 for filename in filenames:
                     if filename.endswith(".graphqls"):
                         files.append(os.path.join(root, filename))
@@ -253,9 +260,23 @@ class SchemaParser:
     def _process_operations(
         self, node: ObjectTypeDefinitionNode | ObjectTypeExtensionNode
     ):
-        """Process Query or Mutation type into operations."""
+        """Process Query or Mutation type into operations.
+
+        Deduplicates operations by name to handle schemas with multiple
+        extend type Query/Mutation blocks that define the same field.
+        """
         op_type = "query" if node.name.value == "Query" else "mutation"
+
+        # Get existing operation names for deduplication
+        existing_names = {
+            op.name for op in (self.ir.queries if op_type == "query" else self.ir.mutations)
+        }
+
         for field in node.fields:
+            # Skip if operation already exists (deduplicate)
+            if field.name.value in existing_names:
+                continue
+
             type_info = self._get_type_info(field.type)
             args = []
             for arg_node in field.arguments:
@@ -284,6 +305,7 @@ class SchemaParser:
                 self.ir.queries.append(op)
             else:
                 self.ir.mutations.append(op)
+            existing_names.add(field.name.value)
 
     @staticmethod
     def _get_type_info(type_node: TypeNode) -> dict[str, Any]:
@@ -331,6 +353,8 @@ class SchemaParser:
         """
         nested_queries: list[IROperation] = []
         nested_mutations: list[IROperation] = []
+        # Track visited paths to avoid duplicates (tuple for hashability)
+        visited_paths: set[tuple[str, ...]] = set()
 
         # Process top-level queries/mutations that return namespace types
         for op in self.ir.queries:
@@ -341,7 +365,8 @@ class SchemaParser:
                     op_type="query",
                     path=[op.name],
                     parent_args=op.arguments,
-                    results=nested_queries
+                    results=nested_queries,
+                    visited=visited_paths,
                 )
 
         for op in self.ir.mutations:
@@ -351,7 +376,8 @@ class SchemaParser:
                     op_type="mutation",
                     path=[op.name],
                     parent_args=op.arguments,
-                    results=nested_mutations
+                    results=nested_mutations,
+                    visited=visited_paths,
                 )
 
         # Add discovered nested operations
@@ -364,7 +390,8 @@ class SchemaParser:
         op_type: str,
         path: list[str],
         parent_args: list[IRArgument],
-        results: list[IROperation]
+        results: list[IROperation],
+        visited: set[tuple[str, ...]],
     ):
         """Recursively traverse a namespace type to find operations.
 
@@ -374,6 +401,7 @@ class SchemaParser:
             path: Current path from root (e.g., ["policy"])
             parent_args: Arguments accumulated from parent namespaces
             results: List to append discovered operations to
+            visited: Set of already-visited paths (to avoid duplicates)
         """
         type_def = self.ir.types.get(type_name)
         if not type_def:
@@ -381,6 +409,11 @@ class SchemaParser:
 
         for field in type_def.fields:
             field_path = path + [field.name]
+            path_tuple = tuple(field_path)
+
+            # Skip if we've already processed this path
+            if path_tuple in visited:
+                continue
 
             if self.ir.is_namespace_type(field.type_name):
                 # This is another namespace - recurse deeper
@@ -391,7 +424,8 @@ class SchemaParser:
                     op_type=op_type,
                     path=field_path,
                     parent_args=accumulated_args,
-                    results=results
+                    results=results,
+                    visited=visited,
                 )
             else:
                 # This is a leaf operation (returns a non-namespace type)
@@ -400,6 +434,7 @@ class SchemaParser:
                 if field.name == "placeholder" and field.type_name == "bool":
                     continue
 
+                visited.add(path_tuple)
                 op = IROperation(
                     name=field.name,
                     operation_type=op_type,
