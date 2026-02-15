@@ -39,6 +39,44 @@ def safe_docstring(text: str) -> str:
     return text
 
 
+def safe_comment(text: str) -> str:
+    """Make text safe for a single-line Python comment.
+
+    Removes newlines, replaces markdown formatting, and ensures
+    the text doesn't cause syntax errors when used as # comment.
+    """
+    if not text:
+        return ""
+    # Replace newlines with spaces
+    text = text.replace('\n', ' ').replace('\r', '')
+    # Remove markdown bold/italic markers
+    text = text.replace('**', '').replace('*', '')
+    # Collapse multiple spaces
+    import re
+    text = re.sub(r'\s+', ' ', text)
+    # Truncate very long descriptions
+    if len(text) > 120:
+        text = text[:117] + "..."
+    return text.strip()
+
+
+# Python reserved keywords that cannot be used as parameter names
+PYTHON_KEYWORDS = {
+    'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
+    'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except',
+    'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is',
+    'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try',
+    'while', 'with', 'yield'
+}
+
+
+def safe_param_name(name: str) -> str:
+    """Make a parameter name safe for Python by suffixing keywords with underscore."""
+    if name in PYTHON_KEYWORDS:
+        return f"{name}_"
+    return name
+
+
 class CodeGenerator:
     """Generates Python code from GraphQL IR."""
 
@@ -58,6 +96,8 @@ class CodeGenerator:
         self.env.filters["upper_case"] = upper_case
         self.env.filters["repr"] = repr
         self.env.filters["safe_docstring"] = safe_docstring
+        self.env.filters["safe_comment"] = safe_comment
+        self.env.filters["safe_param"] = safe_param_name
         self.env.filters["expand_fields"] = self._expand_fields_filter
 
     def _expand_fields_filter(self, type_name: str) -> str:
@@ -278,8 +318,16 @@ class CodeGenerator:
             for model_file in sorted(model_files):
                 f.write(f"from .{model_file} import *\n")
 
-        # clients/__init__.py
+        # clients/__init__.py - export all clients
+        client_files = [
+            f[:-3]  # Remove .py
+            for f in os.listdir(os.path.join(self.output_dir, "clients"))
+            if f.endswith(".py") and f != "__init__.py"
+        ]
         with open(os.path.join(self.output_dir, "clients/__init__.py"), "w") as f:
             f.write('"""Generated GraphQL clients."""\n\n')
             f.write("from .base_client import GraphQLClient, GraphQLError\n")
+            for client_file in sorted(client_files):
+                if client_file != "base_client":
+                    f.write(f"from .{client_file} import *\n")
 

@@ -12,9 +12,31 @@ from pydantic import BaseModel, Field, ConfigDict
 from ..scalars import *
 from ..enums import *
 
+{#- Collect modules needed for inheritance (runtime imports) #}
+{%- set runtime_imports = {} %}
+{%- for type in types %}
+{%- for iface in type.full_interfaces if '.' in iface %}
+{%- set module = iface.split('.')[0] %}
+{%- if module not in runtime_imports %}
+{%- set _ = runtime_imports.update({module: true}) %}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+
+{#- Runtime imports for inheritance #}
+{%- if runtime_imports %}
+{%- for module in runtime_imports.keys() %}
+from . import {{ module }}
+{%- endfor %}
+{%- endif %}
+
 if TYPE_CHECKING:
-{%- if external_imports %}
-{%- for dep_file, dep_types in external_imports.items() %}
+{%- set type_check_imports = {} %}
+{%- for dep_file, dep_types in external_imports.items() if dep_file not in runtime_imports %}
+{%- set _ = type_check_imports.update({dep_file: dep_types}) %}
+{%- endfor %}
+{%- if type_check_imports %}
+{%- for dep_file, dep_types in type_check_imports.items() %}
     from . import {{ dep_file }}
 {%- endfor %}
 {%- else %}
@@ -23,8 +45,23 @@ if TYPE_CHECKING:
 
 
 {# Macro for field name with reserved word handling #}
+{# Include Python keywords AND builtins that would cause collisions #}
+{%- set PYTHON_RESERVED = [
+    'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
+    'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except',
+    'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is',
+    'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try',
+    'while', 'with', 'yield', 'to',
+    'bool', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple',
+    'type', 'object', 'id', 'hash', 'len', 'range', 'print', 'input',
+    'open', 'file', 'bytes', 'bytearray', 'map', 'filter', 'zip',
+    'enumerate', 'sorted', 'reversed', 'min', 'max', 'sum', 'abs',
+    'all', 'any', 'next', 'iter', 'repr', 'format', 'vars', 'dir',
+    'getattr', 'setattr', 'hasattr', 'delattr', 'callable', 'isinstance',
+    'issubclass', 'super', 'property', 'staticmethod', 'classmethod'
+] -%}
 {%- macro field_name(field) -%}
-{{ field.name }}{% if field.name in ['from', 'to', 'class', 'def', 'return', 'import', 'as', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'yield', 'lambda', 'not', 'and', 'or', 'is', 'in', 'global', 'nonlocal', 'assert', 'break', 'continue', 'pass', 'del', 'raise', 'None', 'True', 'False'] or field.name == field.type_name %}_{% endif %}
+{{ field.name }}{% if field.name in PYTHON_RESERVED or field.name == field.type_name %}_{% endif %}
 {%- endmacro -%}
 
 {# Macro for Python type from GraphQL type - uses direct types for scalars #}
