@@ -44,11 +44,8 @@ if TYPE_CHECKING:
 {%- endfor %}
 {%- else %}
     pass
-{%- endif %}
-
-
-{# Macro for field name with reserved word handling #}
-{# Include Python keywords AND some builtins that cause issues #}
+{%- endif -%}
+{#- Macros for field handling - no output -#}
 {%- set PYTHON_RESERVED = [
     'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
     'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except',
@@ -66,8 +63,7 @@ if TYPE_CHECKING:
 {%- macro field_name(field) -%}
 {{ field.name }}{% if field.name in PYTHON_RESERVED or field.name == field.type_name %}_{% endif %}
 {%- endmacro -%}
-
-{# Macro for Python type from GraphQL type - uses direct types for scalars #}
+{#- Macro for Python type from GraphQL type - uses direct types for scalars -#}
 {%- macro python_type(type_name) -%}
 {%- if type_name == 'String' %}str
 {%- elif type_name == 'Int' %}int
@@ -77,10 +73,9 @@ if TYPE_CHECKING:
 {%- else %}{{ type_name }}
 {%- endif %}
 {%- endmacro -%}
-
-{# Macro for field type annotation - ALL fields are Optional for automation #}
-{# Basic types (str, int, float, bool) don't need quotes. Other types need quotes for forward refs. #}
-{# When using union with forward references, the ENTIRE union must be quoted: "TypeName | None" #}
+{#- Macro for field type annotation - ALL fields are Optional for automation -#}
+{#- Basic types don't need quotes. Other types need quotes for forward refs. -#}
+{#- When using union with forward references, the ENTIRE union must be quoted: "TypeName | None" -#}
 {%- set BASIC_TYPES = ['str', 'int', 'float', 'bool'] -%}
 {%- macro field_type(field) -%}
 {%- set py_type = python_type(field.full_type_name) -%}
@@ -90,15 +85,13 @@ if TYPE_CHECKING:
 {%- if py_type in BASIC_TYPES %}{{ py_type }} | None{% else %}"{{ py_type }} | None"{% endif -%}
 {%- endif -%}
 {%- endmacro -%}
-
-{# Macro for field default value #}
+{#- Macro for field default value -#}
 {%- macro field_default(field) -%}
 {% if field.is_list %}default_factory=list{% else %}None{% endif %}
 {%- endmacro -%}
-
-{# Generate interfaces first as base classes #}
+{#- Generate interfaces first as base classes -#}
 {%- for interface in interfaces %}
-
+{% set _dummy = '' %}
 
 class {{ interface.name }}(BaseModel):
     """{{ (interface.description or interface.name)|safe_docstring }}"""
@@ -107,12 +100,10 @@ class {{ interface.name }}(BaseModel):
 {%- for field in interface.fields %}
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
 {%- endfor %}
-{%- endfor %}
-{# Generate types with interface inheritance #}
+{%- endfor -%}
+{#- Generate types with interface inheritance -#}
 {%- for type in types %}
-{#- Build inheritance list: interfaces first, then BaseModel as fallback -#}
-{%- set base_classes = type.full_interfaces if type.full_interfaces else ['BaseModel'] %}
-
+{% set base_classes = type.full_interfaces if type.full_interfaces else ['BaseModel'] %}
 
 class {{ type.name }}({{ base_classes | join(', ') }}):
     """{{ (type.description or type.name)|safe_docstring }}"""
@@ -133,6 +124,7 @@ class {{ type.name }}({{ base_classes | join(', ') }}):
     {%- endif -%}
 {%- endfor %}
 {%- endfor %}
+
 
 # Rebuild models to resolve forward references within this module
 def _rebuild_module_models():
@@ -164,5 +156,5 @@ def _rebuild_module_models():
                 except Exception:
                     pass
 
-_rebuild_module_models()
 
+_rebuild_module_models()

@@ -138,6 +138,7 @@ class CodeGenerator:
         self.env = Environment(
             loader=ChoiceLoader(loaders),
             autoescape=select_autoescape(),
+            keep_trailing_newline=True,
         )
         # Register custom filters
         self.env.filters["snake_case"] = snake_case
