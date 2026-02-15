@@ -41,5 +41,30 @@ gql_pygen = ["templates/*.j2"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.15.1",
 ]
 
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+    "tests/generated",   # Generated test fixtures
+    "output",            # Generated output
+    "real_generated",    # Generated output
+    "cato_gql_client_pkg",  # Generated output
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "UP",     # pyupgrade (modern Python syntax)
+    "I",      # isort (import sorting)
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gql_pygen"]

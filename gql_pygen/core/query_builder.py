@@ -6,9 +6,9 @@ with support for field selection.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
-from .ir import IRField, IROperation, IRSchema, IRType
+from .ir import IROperation, IRSchema, IRType
 
 
 class FieldSelectionMode(Enum):
@@ -22,13 +22,13 @@ class FieldSelectionMode(Enum):
 class FieldSelection:
     """Configuration for which fields to include in a query."""
     mode: FieldSelectionMode = FieldSelectionMode.ALL
-    custom_fields: List[str] = field(default_factory=list)
+    custom_fields: list[str] = field(default_factory=list)
     max_depth: int = 10  # Prevent infinite recursion
-    
+
     # Predefined selections
     ALL: "FieldSelection" = None  # Set below
     MINIMAL: "FieldSelection" = None  # Set below
-    
+
     @classmethod
     def select(cls, *fields: str) -> "FieldSelection":
         """Create a custom field selection."""
@@ -42,11 +42,11 @@ FieldSelection.MINIMAL = FieldSelection(mode=FieldSelectionMode.MINIMAL)
 
 class QueryBuilder:
     """Builds GraphQL query strings from operation metadata."""
-    
+
     def __init__(self, schema: IRSchema):
         """Initialize with schema for type lookups."""
         self.schema = schema
-        self._query_cache: Dict[str, str] = {}
+        self._query_cache: dict[str, str] = {}
         # Types that are considered scalars (no subfields)
         self._scalar_types = {
             "String", "Int", "Float", "Boolean", "ID",
@@ -60,43 +60,43 @@ class QueryBuilder:
         self._scalar_types.update(schema.scalars.keys())
         # Add enums as scalars (no subfields)
         self._scalar_types.update(schema.enums.keys())
-    
+
     def build(
         self,
         operation: IROperation,
         fields: FieldSelection = FieldSelection.ALL,
     ) -> str:
         """Build a GraphQL query/mutation string.
-        
+
         Args:
             operation: The operation metadata
             fields: Field selection configuration
-            
+
         Returns:
             Complete GraphQL query string
         """
         cache_key = f"{operation.full_name}:{fields.mode.value}"
         if cache_key in self._query_cache and fields.mode != FieldSelectionMode.CUSTOM:
             return self._query_cache[cache_key]
-        
+
         # Build variable declarations
         var_decls = self._build_variable_declarations(operation)
-        
+
         # Build the nested field path
         body = self._build_operation_body(operation, fields)
-        
+
         # Assemble the query
         op_type = operation.operation_type
         op_name = self._to_pascal_case(operation.full_name)
-        
+
         query = f"{op_type} {op_name}({var_decls}) {{\n{body}\n}}"
-        
+
         # Cache if not custom
         if fields.mode != FieldSelectionMode.CUSTOM:
             self._query_cache[cache_key] = query
-        
+
         return query
-    
+
     def _build_variable_declarations(self, operation: IROperation) -> str:
         """Build the variable declaration part: ($accountId: ID!, $input: SomeInput!)"""
         decls = []
@@ -113,10 +113,10 @@ class QueryBuilder:
 
         return ", ".join(decls)
 
-    def _get_variable_mapping(self, operation: IROperation) -> List[tuple]:
+    def _get_variable_mapping(self, operation: IROperation) -> list[tuple]:
         """Get a list of (arg, variable_name) tuples, handling duplicate names."""
         mapping = []
-        seen_names: Set[str] = set()
+        seen_names: set[str] = set()
 
         for arg in operation.all_arguments:
             var_name = arg.name
@@ -168,7 +168,7 @@ class QueryBuilder:
             args_str = self._build_field_arguments_with_mapping(level_args, var_name_by_arg)
             field_call = f"{segment}{args_str}"
             lines.append(f"{current_indent}{field_call} {{")
-        
+
         # Add the return type fields
         return_fields = self._build_return_fields(
             operation.return_type,
@@ -176,15 +176,15 @@ class QueryBuilder:
             depth=len(path) + 1,
         )
         lines.append(return_fields)
-        
+
         # Close all the braces
         for i in range(len(path) - 1, -1, -1):
             current_indent = indent * (i + 1)
             lines.append(f"{current_indent}}}")
-        
+
         return "\n".join(lines)
 
-    def _build_field_arguments(self, args: List) -> str:
+    def _build_field_arguments(self, args: list) -> str:
         """Build argument string for a field: (accountId: $accountId, input: $input)"""
         if not args:
             return ""
@@ -196,7 +196,7 @@ class QueryBuilder:
 
         return f"({', '.join(arg_strs)})"
 
-    def _build_field_arguments_with_mapping(self, args: List, var_name_by_arg: Dict[int, str]) -> str:
+    def _build_field_arguments_with_mapping(self, args: list, var_name_by_arg: dict[int, str]) -> str:
         """Build argument string using variable mapping for duplicate handling."""
         if not args:
             return ""
@@ -241,16 +241,16 @@ class QueryBuilder:
         """Build minimal field selection (id + __typename)."""
         lines = [f"{indent}__typename"]
 
-        for field in type_def.fields:
-            if field.name in ("id", "ID", "status", "name"):
-                lines.append(f"{indent}{field.name}")
+        for ir_field in type_def.fields:
+            if ir_field.name in ("id", "ID", "status", "name"):
+                lines.append(f"{indent}{ir_field.name}")
 
         return "\n".join(lines)
 
     def _build_custom_fields(
         self,
         type_def: IRType,
-        custom_fields: List[str],
+        custom_fields: list[str],
         indent: str,
         depth: int,
     ) -> str:
@@ -258,7 +258,7 @@ class QueryBuilder:
         lines = [f"{indent}__typename"]
 
         # Parse custom fields into a tree structure
-        field_tree: Dict[str, Any] = {}
+        field_tree: dict[str, Any] = {}
         for field_path in custom_fields:
             parts = field_path.split(".")
             current = field_tree
@@ -271,22 +271,22 @@ class QueryBuilder:
                 current = current[part]
 
         # Build fields from tree
-        for field in type_def.fields:
-            if field.name in field_tree or "*" in field_tree:
-                if self._is_scalar(field.type_name):
-                    lines.append(f"{indent}{field.name}")
+        for ir_field in type_def.fields:
+            if ir_field.name in field_tree or "*" in field_tree:
+                if self._is_scalar(ir_field.type_name):
+                    lines.append(f"{indent}{ir_field.name}")
                 else:
-                    subfields = field_tree.get(field.name, {})
+                    subfields = field_tree.get(ir_field.name, {})
                     if "*" in field_tree:
                         subfields = {"*": True}
-                    lines.append(f"{indent}{field.name} {{")
+                    lines.append(f"{indent}{ir_field.name} {{")
                     # Recurse for nested types
-                    nested_type = self.schema.get_type_by_name(field.type_name)
+                    nested_type = self.schema.get_type_by_name(ir_field.type_name)
                     if nested_type:
                         sub_custom = [
-                            f[len(field.name)+1:]
+                            f[len(ir_field.name)+1:]
                             for f in custom_fields
-                            if f.startswith(f"{field.name}.")
+                            if f.startswith(f"{ir_field.name}.")
                         ] or (["*"] if "*" in subfields else [])
                         lines.append(self._build_custom_fields(
                             nested_type, sub_custom, indent + "  ", depth + 1
@@ -301,7 +301,7 @@ class QueryBuilder:
         indent: str,
         depth: int,
         fields: FieldSelection,
-        visited: Optional[Set[str]] = None,
+        visited: set[str] | None = None,
     ) -> str:
         """Build complete field selection (all fields recursively)."""
         if visited is None:
@@ -314,14 +314,14 @@ class QueryBuilder:
 
         lines = []
 
-        for field in type_def.fields:
-            if self._is_scalar(field.type_name):
-                lines.append(f"{indent}{field.name}")
+        for ir_field in type_def.fields:
+            if self._is_scalar(ir_field.type_name):
+                lines.append(f"{indent}{ir_field.name}")
             else:
                 # Check if nested type exists
-                nested_type = self.schema.get_type_by_name(field.type_name)
+                nested_type = self.schema.get_type_by_name(ir_field.type_name)
                 if nested_type and depth < fields.max_depth:
-                    lines.append(f"{indent}{field.name} {{")
+                    lines.append(f"{indent}{ir_field.name} {{")
                     lines.append(self._build_all_fields(
                         nested_type, indent + "  ", depth + 1, fields, visited
                     ))
