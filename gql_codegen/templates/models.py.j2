@@ -46,7 +46,8 @@ if TYPE_CHECKING:
 
 
 {# Macro for field name with reserved word handling #}
-{# Include Python keywords AND builtins that would cause collisions #}
+{# Include Python keywords AND some builtins that cause issues #}
+{# NOTE: 'id' is special-cased below with a property alias for backward compat #}
 {%- set PYTHON_RESERVED = [
     'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
     'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except',
@@ -54,15 +55,20 @@ if TYPE_CHECKING:
     'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try',
     'while', 'with', 'yield', 'to',
     'bool', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple',
-    'type', 'object', 'id', 'hash', 'len', 'range', 'print', 'input',
+    'type', 'object', 'hash', 'len', 'range', 'print', 'input',
     'open', 'file', 'bytes', 'bytearray', 'map', 'filter', 'zip',
     'enumerate', 'sorted', 'reversed', 'min', 'max', 'sum', 'abs',
     'all', 'any', 'next', 'iter', 'repr', 'format', 'vars', 'dir',
     'getattr', 'setattr', 'hasattr', 'delattr', 'callable', 'isinstance',
     'issubclass', 'super', 'property', 'staticmethod', 'classmethod'
 ] -%}
+{# Fields that get renamed AND need a backward-compat property alias #}
+{%- set NEEDS_PROPERTY_ALIAS = ['id'] -%}
 {%- macro field_name(field) -%}
-{{ field.name }}{% if field.name in PYTHON_RESERVED or field.name == field.type_name %}_{% endif %}
+{{ field.name }}{% if field.name in PYTHON_RESERVED or field.name in NEEDS_PROPERTY_ALIAS or field.name == field.type_name %}_{% endif %}
+{%- endmacro -%}
+{%- macro needs_property_alias(field) -%}
+{{ field.name in NEEDS_PROPERTY_ALIAS }}
 {%- endmacro -%}
 
 {# Macro for Python type from GraphQL type - uses direct types for scalars #}
@@ -94,6 +100,16 @@ class {{ interface.name }}(BaseModel):
     {% for field in interface.fields %}
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
     {% endfor %}
+    {# Add property aliases for backward compatibility (e.g., 'id' -> 'id_') #}
+    {%- for field in interface.fields %}
+    {%- if field.name in NEEDS_PROPERTY_ALIAS %}
+
+    @property
+    def {{ field.name }}(self) -> {{ field_type(field) }}:
+        """Alias for {{ field.name }}_ (backward compatibility)."""
+        return self.{{ field.name }}_
+    {%- endif %}
+    {%- endfor %}
 
 {% endfor %}
 
@@ -118,6 +134,17 @@ class {{ type.name }}({{ base_classes | join(', ') }}):
     {{ field_name(field) }}: {{ field_type(field) }} = Field({{ field_default(field) }}, description={{ (field.description or '')|repr }}, alias="{{ field.name }}")
     {%- endif %}
     {% endfor %}
+    {# Add property aliases for backward compat - only for fields defined directly, not inherited #}
+    {%- set has_alias = [] -%}
+    {%- for field in type.fields %}
+    {%- if field.name in NEEDS_PROPERTY_ALIAS and field.name not in inherited_fields %}
+    {%- set _ = has_alias.append(field.name) %}
+    @property
+    def {{ field.name }}(self) -> {{ field_type(field) }}:
+        """Alias for {{ field.name }}_ (backward compatibility)."""
+        return self.{{ field.name }}_
+    {%- endif %}
+    {%- endfor %}
 
 {% endfor %}
 
