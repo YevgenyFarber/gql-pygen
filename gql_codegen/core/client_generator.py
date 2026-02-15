@@ -74,13 +74,11 @@ class ClientGenerator:
             '"""Auto-generated GraphQL client."""',
             "",
             "from __future__ import annotations",
-            "from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union",
+            "from typing import Any, Dict, List, Optional, Union",
             "",
             "from .query_builder import FieldSelection, QueryBuilder",
             "from .executor import GraphQLExecutor",
-            "",
-            "if TYPE_CHECKING:",
-            "    from ..models import *",
+            "from ..models import *  # Import models for runtime model_validate()",
             "",
         ]
         
@@ -237,7 +235,27 @@ class ClientGenerator:
         lines.append(f"            variables=variables,")
         lines.append(f"            fields=fields,")
         lines.append(f"        )")
-        lines.append(f"        return result")
+
+        # Add response parsing with model_validate()
+        base_type = op.return_type
+        if op.is_return_list and op.is_return_optional:
+            # Optional[List[T]] - return None or list of parsed models
+            lines.append(f"        if result is None:")
+            lines.append(f"            return None")
+            lines.append(f"        return [{base_type}.model_validate(item) for item in result]")
+        elif op.is_return_list:
+            # List[T] - return list of parsed models (empty list if None)
+            lines.append(f"        if result is None:")
+            lines.append(f"            return []")
+            lines.append(f"        return [{base_type}.model_validate(item) for item in result]")
+        elif op.is_return_optional:
+            # Optional[T] - return None or parsed model
+            lines.append(f"        if result is None:")
+            lines.append(f"            return None")
+            lines.append(f"        return {base_type}.model_validate(result)")
+        else:
+            # T - return parsed model (required)
+            lines.append(f"        return {base_type}.model_validate(result)")
         lines.append("")
 
         return lines
