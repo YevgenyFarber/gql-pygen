@@ -280,16 +280,24 @@ class TestFullGeneration:
         assert "from .executor import GraphQLExecutor" in code
         assert "from ..models import *" in code
 
-    def test_generates_cato_client_class(self, minimal_schema):
-        """Should generate the root CatoClient class."""
+    def test_generates_default_client_class(self, minimal_schema):
+        """Should generate the root client class with default name."""
         gen = ClientGenerator(minimal_schema)
         code = gen.generate_client_code()
 
-        assert "class CatoClient:" in code
+        assert "class GraphQLClient:" in code
         assert "def __init__(self, url: str, api_key: str):" in code
         assert "async def close(self):" in code
         assert "async def __aenter__(self):" in code
         assert "async def __aexit__(self" in code
+
+    def test_generates_custom_client_class(self, minimal_schema):
+        """Should generate the root client class with custom name."""
+        gen = ClientGenerator(minimal_schema, client_name="MyAPIClient")
+        code = gen.generate_client_code()
+
+        assert "class MyAPIClient:" in code
+        assert "MyAPIClient(url=" in code  # In docstring example
 
     def test_generates_namespace_client(self, minimal_schema):
         """Should generate namespace client classes."""

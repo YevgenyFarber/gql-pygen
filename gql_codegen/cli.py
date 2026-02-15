@@ -131,12 +131,18 @@ def generate(schema: str, output: str, verbose: bool):
     help="Output file for generated client code (e.g., client.py).",
 )
 @click.option(
+    "--client-name",
+    "-n",
+    default="GraphQLClient",
+    help="Name of the generated client class (default: GraphQLClient).",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
     help="Enable verbose output.",
 )
-def client(schema: str, output: str, verbose: bool):
+def client(schema: str, output: str, client_name: str, verbose: bool):
     """Generate auto-client with typed methods from GraphQL schema.
 
     This generates a nested client structure like:
@@ -183,8 +189,8 @@ def client(schema: str, output: str, verbose: bool):
             click.echo(f"  Nested operations: {len([op for op in ir.all_operations if len(op.path) > 1])}")
 
         # Generate client code
-        click.echo("Generating client code...")
-        generator = ClientGenerator(ir)
+        click.echo(f"Generating client code (class: {client_name})...")
+        generator = ClientGenerator(ir, client_name=client_name)
         code = generator.generate_client_code()
 
         # Count stats

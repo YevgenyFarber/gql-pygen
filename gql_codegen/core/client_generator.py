@@ -51,9 +51,10 @@ def to_pascal_case(name: str) -> str:
 
 class ClientGenerator:
     """Generates client code from schema operations."""
-    
-    def __init__(self, schema: IRSchema):
+
+    def __init__(self, schema: IRSchema, client_name: str = "GraphQLClient"):
         self.schema = schema
+        self.client_name = client_name
         self.query_tree = ClientNode(name="Query", snake_name="query")
         self.mutation_tree = ClientNode(name="Mutation", snake_name="mutation")
         self._build_trees()
@@ -287,14 +288,14 @@ class ClientGenerator:
         return name[0].lower() + name[1:] if name else "arg"
 
     def _generate_root_client(self) -> List[str]:
-        """Generate the root CatoClient class."""
+        """Generate the root client class."""
         lines = [
-            "class CatoClient:",
-            '    """Auto-generated GraphQL client for Cato API.',
+            f"class {self.client_name}:",
+            '    """Auto-generated GraphQL client.',
             "",
             "    Usage:",
-            "        client = CatoClient(url='https://api.cato.io/graphql', api_key='...')",
-            "        result = await client.policy.internet_firewall.add_rule(...)",
+            f"        client = {self.client_name}(url='https://your-api.com/graphql', api_key='...')",
+            "        result = await client.namespace.operation(...)",
             '    """',
             "",
             "    def __init__(self, url: str, api_key: str):",
