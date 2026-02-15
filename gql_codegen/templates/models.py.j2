@@ -120,3 +120,36 @@ class {{ type.name }}({{ base_classes | join(', ') }}):
 
 {% endfor %}
 
+# Rebuild models to resolve forward references
+# This is required for Pydantic v2 when models have circular dependencies
+def _rebuild_models():
+    """Rebuild all models in this module to resolve forward references."""
+    import sys
+    current_module = sys.modules[__name__]
+
+    {%- if external_imports %}
+    # Import all sibling modules to ensure types are available
+    from . import (
+        {%- for dep_file in external_imports.keys() %}
+        {{ dep_file }},
+        {%- endfor %}
+    )
+    {%- endif %}
+
+    # Collect all model classes from this module
+    model_classes = []
+    for name in dir(current_module):
+        obj = getattr(current_module, name)
+        if isinstance(obj, type) and issubclass(obj, BaseModel) and obj is not BaseModel:
+            model_classes.append(obj)
+
+    # Rebuild each model class
+    for cls in model_classes:
+        try:
+            cls.model_rebuild()
+        except Exception:
+            pass  # Silently ignore rebuild errors for already-built models
+
+# Auto-rebuild on module import
+_rebuild_models()
+
