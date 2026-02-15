@@ -7,12 +7,17 @@ IMPORTANT: Call ensure_models_rebuilt() before using models with forward referen
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel
+{%- if types or interfaces %}
+from pydantic import ConfigDict
+from pydantic import Field
+{%- endif %}
 
-from ..scalars import *
 from ..enums import *
+from ..scalars import *
 
 {#- Collect modules needed for inheritance (runtime imports) #}
 {%- set runtime_imports = {} %}
@@ -25,21 +30,21 @@ from ..enums import *
 {%- endfor %}
 {%- endfor %}
 
-{#- Runtime imports only for inheritance (base classes) #}
+{#- Runtime imports only for inheritance (base classes, sorted for I001) #}
 {%- if runtime_imports %}
-{%- for module in runtime_imports.keys() %}
+{%- for module in runtime_imports.keys() | sort %}
 from . import {{ module }}
 {%- endfor %}
 {%- endif %}
 
 if TYPE_CHECKING:
-{#- Type-checking imports for forward references #}
+{#- Type-checking imports for forward references (sorted for I001) #}
 {%- set type_check_imports = {} %}
 {%- for dep_file, dep_types in external_imports.items() if dep_file not in runtime_imports %}
 {%- set _ = type_check_imports.update({dep_file: dep_types}) %}
 {%- endfor %}
 {%- if type_check_imports %}
-{%- for dep_file in type_check_imports.keys() %}
+{%- for dep_file in type_check_imports.keys() | sort %}
     from . import {{ dep_file }}
 {%- endfor %}
 {%- else %}
@@ -74,15 +79,13 @@ if TYPE_CHECKING:
 {%- endif %}
 {%- endmacro -%}
 {#- Macro for field type annotation - ALL fields are Optional for automation -#}
-{#- Basic types don't need quotes. Other types need quotes for forward refs. -#}
-{#- When using union with forward references, the ENTIRE union must be quoted: "TypeName | None" -#}
-{%- set BASIC_TYPES = ['str', 'int', 'float', 'bool'] -%}
+{#- With `from __future__ import annotations`, no quotes are needed (PEP 563) -#}
 {%- macro field_type(field) -%}
 {%- set py_type = python_type(field.full_type_name) -%}
 {%- if field.is_list -%}
-{%- if py_type in BASIC_TYPES %}list[{{ py_type }}] | None{% else %}"list[{{ py_type }}] | None"{% endif -%}
+list[{{ py_type }}] | None
 {%- else -%}
-{%- if py_type in BASIC_TYPES %}{{ py_type }} | None{% else %}"{{ py_type }} | None"{% endif -%}
+{{ py_type }} | None
 {%- endif -%}
 {%- endmacro -%}
 {#- Macro for field default value -#}

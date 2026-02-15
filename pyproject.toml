@@ -70,3 +70,4 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["gql_pygen"]
+force-single-line = true  # Keep one import per line for generated code readability

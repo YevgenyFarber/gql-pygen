@@ -2,11 +2,15 @@
 
 Provides typed methods for GraphQL operations.
 """
-{% if operations %}
+
+from __future__ import annotations
+{%- if operations %}
+
 from typing import Any
-{% endif %}
-from .base_client import GraphQLClient
+{%- endif %}
+
 from ..models import *
+from .base_client import GraphQLClient
 
 
 class {{ client_name }}Client:

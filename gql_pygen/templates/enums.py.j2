@@ -1,8 +1,7 @@
 """Generated GraphQL enum types."""
 
 from enum import Enum
-
-{% for enum in enums %}
+{%- for enum in enums %}
 
 
 class {{ enum.name }}(str, Enum):

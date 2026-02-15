@@ -269,12 +269,12 @@ class CodeGenerator:
 
         for base_name in sorted(models_by_file.keys()):
             content = models_by_file[base_name]
-            self._prepare_model_context(base_name, content, models_by_file)
+            self._prepare_model_context(base_name, content, models_by_file, interface_fields)
             content["interface_fields"] = interface_fields
             self._generate_file("models.py.j2", f"models/{base_name}.py", content)
 
     def _prepare_model_context(
-        self, base_name: str, content: dict, all_models: dict
+        self, base_name: str, content: dict, all_models: dict, interface_fields: dict
     ):
         """Prepare cross-module imports and full type names."""
         local_types = {t.name for t in content["types"]} | {
@@ -302,18 +302,32 @@ class CodeGenerator:
                             external_deps.add((dep_base, dep))
                             type_to_module[dep] = dep_base
 
+        # Track which modules are actually used (for external_imports)
+        used_modules: set[str] = set()
+
         # Set full_type_name and full_interfaces for types
         for ir_type in content["types"]:
             ir_type.full_type_name = ir_type.name
             ir_type.full_interfaces = []
+
+            # Collect inherited field names (these are skipped in output)
+            inherited_field_names: set[str] = set()
+            for iface in ir_type.interfaces:
+                if iface in interface_fields:
+                    inherited_field_names.update(interface_fields[iface])
+
             for iface in ir_type.interfaces:
                 if iface in type_to_module:
                     ir_type.full_interfaces.append(f"{type_to_module[iface]}.{iface}")
+                    used_modules.add(type_to_module[iface])
                 else:
                     ir_type.full_interfaces.append(iface)
             for field in ir_type.fields:
                 if field.type_name in type_to_module:
                     field.full_type_name = f"{type_to_module[field.type_name]}.{field.type_name}"
+                    # Only add to used_modules if this field will actually be output
+                    if field.name not in inherited_field_names:
+                        used_modules.add(type_to_module[field.type_name])
                 else:
                     field.full_type_name = field.type_name
 
@@ -322,15 +336,17 @@ class CodeGenerator:
             for field in interface.fields:
                 if field.type_name in type_to_module:
                     field.full_type_name = f"{type_to_module[field.type_name]}.{field.type_name}"
+                    used_modules.add(type_to_module[field.type_name])
                 else:
                     field.full_type_name = field.type_name
 
-        # Group imports by file
+        # Group imports by file - only include modules that are actually used
         imports_by_file: dict[str, list] = {}
         for dep_base, dep_type in external_deps:
-            if dep_base not in imports_by_file:
-                imports_by_file[dep_base] = []
-            imports_by_file[dep_base].append(dep_type)
+            if dep_base in used_modules:
+                if dep_base not in imports_by_file:
+                    imports_by_file[dep_base] = []
+                imports_by_file[dep_base].append(dep_type)
 
         content["external_imports"] = imports_by_file
 
@@ -425,7 +441,7 @@ class CodeGenerator:
             f.write('"""\n\n')
 
             f.write('import importlib\n')
-            f.write('from typing import TYPE_CHECKING\n')
+            f.write('from typing import TYPE_CHECKING\n\n')
             f.write('from pydantic import BaseModel\n\n')
 
             # List of submodules
@@ -520,10 +536,12 @@ if TYPE_CHECKING:
         ]
         with open(os.path.join(self.output_dir, "clients/__init__.py"), "w") as f:
             f.write('"""Generated GraphQL clients."""\n\n')
-            # Use explicit re-export to avoid F401 unused import warning
-            f.write("from .base_client import GraphQLClient as GraphQLClient\n")
-            f.write("from .base_client import GraphQLError as GraphQLError\n")
+            # Write imports in sorted order to satisfy isort (I001)
             for client_file in sorted(client_files):
-                if client_file != "base_client":
+                if client_file == "base_client":
+                    # Use explicit re-export to avoid F401 unused import warning
+                    f.write("from .base_client import GraphQLClient as GraphQLClient\n")
+                    f.write("from .base_client import GraphQLError as GraphQLError\n")
+                else:
                     f.write(f"from .{client_file} import *\n")
 

@@ -3,17 +3,17 @@
 This module provides Python type aliases and validators for GraphQL scalar types.
 """
 
-from typing import Annotated, Any
-from ipaddress import IPv4Address, IPv4Network, IPv6Network
-from datetime import datetime
 import re
+from datetime import datetime
+from ipaddress import IPv4Address
+from ipaddress import IPv4Network
+from ipaddress import IPv6Network
+from typing import Annotated
+from typing import Any
 
-from pydantic import (
-    AfterValidator,
-    EmailStr,
-    HttpUrl,
-)
-
+from pydantic import AfterValidator
+from pydantic import EmailStr
+from pydantic import HttpUrl
 
 # === Built-in GraphQL Scalars ===
 String = str
