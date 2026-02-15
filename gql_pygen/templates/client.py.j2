@@ -14,13 +14,16 @@ class {{ client_name }}Client:
 
     def __init__(self, client: GraphQLClient):
         self.client = client
-{%- for op in operations %}
+{%- for item in operations %}
+    {#- item is a dict with 'op' (IROperation) and 'method_name' (Python method name) -#}
+    {%- set op = item.op -%}
+    {%- set method_name = item.method_name -%}
     {#- Sort arguments: required first, optional last -#}
     {%- set required_args = op.arguments | selectattr('is_optional', 'false') | list -%}
     {%- set optional_args = op.arguments | selectattr('is_optional', 'true') | list -%}
     {%- set sorted_args = required_args + optional_args %}
 
-    def {{ op.name | snake_case }}(
+    def {{ method_name }}(
         self,
         {%- for arg in sorted_args %}
         {{ arg.name | snake_case | safe_param }}: {% if arg.is_list %}list[{{ arg.type_name }}]{% else %}{{ arg.type_name }}{% endif %}{% if arg.is_optional %} | None = None{% endif %},

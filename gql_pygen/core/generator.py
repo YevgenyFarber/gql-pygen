@@ -344,12 +344,65 @@ class CodeGenerator:
             clients[domain].append(op)
 
         for domain, ops in clients.items():
+            # Detect duplicate operation names and suffix mutations to disambiguate
+            ops_with_method_names = self._resolve_method_name_conflicts(ops)
             client_name = pascal_case(domain)
             self._generate_file(
                 "client.py.j2",
                 f"clients/{snake_case(domain)}_client.py",
-                {"client_name": client_name, "operations": ops},
+                {"client_name": client_name, "operations": ops_with_method_names},
             )
+
+    def _resolve_method_name_conflicts(
+        self, operations: list
+    ) -> list[dict]:
+        """Resolve duplicate method names by suffixing with operation type and index.
+
+        Strategy:
+        1. If only one operation has a name: use the name as-is
+        2. If query and mutation share a name: query keeps name, mutation gets '_mutation'
+        3. If multiple operations of same type share a name: append index (_2, _3, etc.)
+
+        Returns a list of dicts containing the operation plus a 'method_name' key.
+        """
+        # Track method names that have been assigned to detect collisions
+        assigned_names: dict[str, int] = {}  # method_name -> count
+        result = []
+
+        # First pass: group by snake_case name to identify conflicts
+        name_to_ops: dict[str, list] = {}
+        for op in operations:
+            base_name = snake_case(op.name)
+            if base_name not in name_to_ops:
+                name_to_ops[base_name] = []
+            name_to_ops[base_name].append(op)
+
+        # Second pass: assign method names
+        for op in operations:
+            base_name = snake_case(op.name)
+            ops_with_same_name = name_to_ops[base_name]
+
+            if len(ops_with_same_name) == 1:
+                # No conflict - use base name
+                method_name = base_name
+            else:
+                # Conflict exists - determine the suffix
+                if op.operation_type == "mutation":
+                    method_name = f"{base_name}_mutation"
+                else:
+                    # Query keeps the base name
+                    method_name = base_name
+
+            # Check if this method_name is already used and add index if needed
+            if method_name in assigned_names:
+                assigned_names[method_name] += 1
+                method_name = f"{method_name}_{assigned_names[method_name]}"
+            else:
+                assigned_names[method_name] = 1
+
+            result.append({"op": op, "method_name": method_name})
+
+        return result
 
     def _generate_init_files(self):
         """Generate __init__.py files for packages."""
