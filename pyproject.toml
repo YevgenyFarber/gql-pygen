@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Developer"}
+    {name = "Yevgeny Farber"}
 ]
 dependencies = [
     "graphql-core>=3.2.0",
@@ -20,6 +20,10 @@ dependencies = [
     "click>=8.0.0",
     "httpx>=0.28.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/YevgenyFarber/gql-pygen"
+Repository = "https://github.com/YevgenyFarber/gql-pygen"
 
 [project.optional-dependencies]
 dev = [
@@ -42,6 +46,7 @@ gql_pygen = ["templates/*.j2"]
 dev = [
     "pytest>=9.0.2",
     "ruff>=0.15.1",
+    "twine>=6.2.0",
 ]
 
 [tool.ruff]
