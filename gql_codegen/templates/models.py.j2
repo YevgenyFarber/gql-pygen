@@ -23,7 +23,7 @@ from ..enums import *
 {%- endfor %}
 {%- endfor %}
 
-{#- Runtime imports for inheritance #}
+{#- Runtime imports only for inheritance (base classes) #}
 {%- if runtime_imports %}
 {%- for module in runtime_imports.keys() %}
 from . import {{ module }}
@@ -31,12 +31,13 @@ from . import {{ module }}
 {%- endif %}
 
 if TYPE_CHECKING:
+{#- Type-checking imports for forward references #}
 {%- set type_check_imports = {} %}
 {%- for dep_file, dep_types in external_imports.items() if dep_file not in runtime_imports %}
 {%- set _ = type_check_imports.update({dep_file: dep_types}) %}
 {%- endfor %}
 {%- if type_check_imports %}
-{%- for dep_file, dep_types in type_check_imports.items() %}
+{%- for dep_file in type_check_imports.keys() %}
     from . import {{ dep_file }}
 {%- endfor %}
 {%- else %}
@@ -120,36 +121,35 @@ class {{ type.name }}({{ base_classes | join(', ') }}):
 
 {% endfor %}
 
-# Rebuild models to resolve forward references
-# This is required for Pydantic v2 when models have circular dependencies
-def _rebuild_models():
+# Rebuild models to resolve forward references within this module
+def _rebuild_module_models():
     """Rebuild all models in this module to resolve forward references."""
     import sys
     current_module = sys.modules[__name__]
 
-    {%- if external_imports %}
-    # Import all sibling modules to ensure types are available
-    from . import (
-        {%- for dep_file in external_imports.keys() %}
-        {{ dep_file }},
-        {%- endfor %}
-    )
-    {%- endif %}
+    # Build namespace with all types from this module plus imported modules
+    rebuild_namespace = {}
 
-    # Collect all model classes from this module
-    model_classes = []
+    # Add all runtime-imported modules (for cross-module references like "base.CountryRefInput")
+{%- for module in runtime_imports.keys() %}
+    rebuild_namespace['{{ module }}'] = {{ module }}
+{%- endfor %}
+
+    # Add all types from this module
     for name in dir(current_module):
-        obj = getattr(current_module, name)
+        obj = getattr(current_module, name, None)
+        if isinstance(obj, type) and issubclass(obj, BaseModel):
+            rebuild_namespace[name] = obj
+
+    # Rebuild all models
+    for name in dir(current_module):
+        obj = getattr(current_module, name, None)
         if isinstance(obj, type) and issubclass(obj, BaseModel) and obj is not BaseModel:
-            model_classes.append(obj)
+            if not getattr(obj, '__pydantic_complete__', True):
+                try:
+                    obj.model_rebuild(_types_namespace=rebuild_namespace)
+                except Exception:
+                    pass
 
-    # Rebuild each model class
-    for cls in model_classes:
-        try:
-            cls.model_rebuild()
-        except Exception:
-            pass  # Silently ignore rebuild errors for already-built models
-
-# Auto-rebuild on module import
-_rebuild_models()
+_rebuild_module_models()
 

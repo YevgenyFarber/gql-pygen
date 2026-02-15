@@ -307,16 +307,108 @@ class CodeGenerator:
         with open(os.path.join(self.output_dir, "__init__.py"), "w") as f:
             f.write('"""Generated GraphQL client package."""\n')
 
-        # models/__init__.py - export all models
+        # models/__init__.py - lazy imports for performance
         model_files = [
             f[:-3]  # Remove .py
             for f in os.listdir(os.path.join(self.output_dir, "models"))
             if f.endswith(".py") and f != "__init__.py"
         ]
         with open(os.path.join(self.output_dir, "models/__init__.py"), "w") as f:
-            f.write('"""Generated GraphQL models."""\n\n')
+            f.write('"""Generated GraphQL models.\n\n')
+            f.write('Import directly from this package for lazy loading:\n')
+            f.write('    from cato_gql_client_pkg.generated_client.models import SomeType\n\n')
+            f.write('Or import everything (slower):\n')
+            f.write('    from cato_gql_client_pkg.generated_client.models import *\n')
+            f.write('"""\n\n')
+
+            f.write('import sys\n')
+            f.write('import importlib\n')
+            f.write('from typing import TYPE_CHECKING\n')
+            f.write('from pydantic import BaseModel\n\n')
+
+            # List of submodules
+            f.write('_SUBMODULES = [\n')
             for model_file in sorted(model_files):
-                f.write(f"from .{model_file} import *\n")
+                f.write(f'    "{model_file}",\n')
+            f.write(']\n\n')
+
+            # Lazy __getattr__ implementation with model rebuilding
+            f.write('''
+# Cache for loaded modules
+_loaded_modules = {}
+_rebuild_done = False
+
+def _load_module(name):
+    """Load a submodule and cache it."""
+    if name not in _loaded_modules:
+        _loaded_modules[name] = importlib.import_module(f".{name}", __name__)
+    return _loaded_modules[name]
+
+def _rebuild_loaded_models():
+    """Rebuild all loaded models to resolve forward references."""
+    global _rebuild_done
+    if _rebuild_done:
+        return
+
+    # Build namespace with all loaded model modules
+    rebuild_namespace = {}
+    for module_name, module in _loaded_modules.items():
+        rebuild_namespace[module_name] = module
+        # Also add all types from each module
+        for name in dir(module):
+            obj = getattr(module, name, None)
+            if isinstance(obj, type) and issubclass(obj, BaseModel):
+                rebuild_namespace[name] = obj
+
+    # Rebuild incomplete models
+    for module in _loaded_modules.values():
+        for name in dir(module):
+            obj = getattr(module, name, None)
+            if isinstance(obj, type) and issubclass(obj, BaseModel) and obj is not BaseModel:
+                if not getattr(obj, '__pydantic_complete__', True):
+                    try:
+                        obj.model_rebuild(_types_namespace=rebuild_namespace)
+                    except Exception:
+                        pass
+
+    _rebuild_done = True
+
+def __getattr__(name):
+    """Lazy import of types from submodules."""
+    # First check if it's a submodule name
+    if name in _SUBMODULES:
+        return _load_module(name)
+
+    # Search for the type in all submodules
+    for submodule_name in _SUBMODULES:
+        try:
+            module = _load_module(submodule_name)
+            if hasattr(module, name):
+                obj = getattr(module, name)
+                # Rebuild models after loading to resolve forward refs
+                if isinstance(obj, type) and issubclass(obj, BaseModel):
+                    _rebuild_loaded_models()
+                return obj
+        except Exception:
+            pass
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+def __dir__():
+    """List all available names including lazy-loaded types."""
+    names = list(globals().keys())
+    names.extend(_SUBMODULES)
+    # Add all type names from loaded modules
+    for module in _loaded_modules.values():
+        names.extend(n for n in dir(module) if not n.startswith('_'))
+    return sorted(set(names))
+
+# Type checking imports for IDE support
+if TYPE_CHECKING:
+''')
+            # For TYPE_CHECKING block - list all imports for type checkers
+            for model_file in sorted(model_files):
+                f.write(f'    from .{model_file} import *\n')
 
         # clients/__init__.py - export all clients
         client_files = [
