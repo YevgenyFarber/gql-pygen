@@ -9,6 +9,7 @@
 - ✅ **Response Parsing** — Responses are automatically validated and converted to typed models
 - 🎛️ **Field Selection** — Request ALL fields, MINIMAL fields, or custom field sets
 - 📦 **Archive Support** — Works with `.graphqls` files, directories, `.zip`, `.tar.gz`, and `.tgz` archives
+- 🔌 **Extensible** — Custom auth, templates, scalar handlers, and generation hooks
 
 ## Installation
 
@@ -76,9 +77,10 @@ Generate Pydantic models from a GraphQL schema.
 gql-pygen generate [OPTIONS]
 
 Options:
-  -s, --schema PATH   Path to schema file, directory, or archive [required]
-  -o, --output PATH   Output directory for generated code [required]
-  -v, --verbose       Enable verbose output
+  -s, --schema PATH        Path to schema file, directory, or archive [required]
+  -o, --output PATH        Output directory for generated code [required]
+  -t, --templates PATH     Custom template directory (overrides built-in templates)
+  -v, --verbose            Enable verbose output
 ```
 
 **Examples:**
@@ -89,6 +91,9 @@ gql-pygen generate -s ./schema -o ./generated
 
 # From an archive
 gql-pygen generate -s ./schema-bundle.tgz -o ./generated
+
+# With custom templates
+gql-pygen generate -s ./schema -o ./generated --templates ./my_templates
 ```
 
 ### `gql-pygen client`
@@ -155,6 +160,110 @@ except GraphQLError as e:
     print(f"GraphQL error: {e.message}")
     for error in e.errors:
         print(f"  - {error}")
+```
+
+## Extensibility
+
+gql-pygen is designed to be extensible. You can customize authentication, templates, scalar handling, and code generation without modifying the package.
+
+### Custom Authentication
+
+The generated client supports pluggable authentication:
+
+```python
+from gql_pygen.core import BearerAuth, BasicAuth, HeaderAuth, ApiKeyAuth
+
+# Bearer token (OAuth, JWT)
+async with MyClient(url=URL, auth=BearerAuth("your-token")) as client:
+    result = await client.users.get_user(id="123")
+
+# Basic auth
+async with MyClient(url=URL, auth=BasicAuth("user", "pass")) as client:
+    ...
+
+# Custom headers
+async with MyClient(url=URL, auth=HeaderAuth({"X-Custom": "value"})) as client:
+    ...
+
+# API key (default, backward compatible)
+async with MyClient(url=URL, auth=ApiKeyAuth("key", header_name="x-api-key")) as client:
+    ...
+```
+
+You can also implement your own auth by following the `Auth` protocol:
+
+```python
+class MyCustomAuth:
+    def get_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Custom {self.token}"}
+```
+
+### Custom Templates
+
+Override built-in Jinja2 templates to customize generated code:
+
+```bash
+gql-pygen generate -s ./schema -o ./generated --templates ./my_templates
+```
+
+Templates in your directory take precedence. Available templates to override:
+- `models.py.j2` — Pydantic model generation
+- `enums.py.j2` — Enum generation
+- `scalars.py.j2` — Scalar type definitions
+
+### Custom Scalar Handlers
+
+Define how GraphQL custom scalars map to Python types:
+
+```python
+from gql_pygen.core import ScalarHandler, ScalarRegistry
+
+class MoneyHandler:
+    python_type = "Decimal"
+    import_statement = "from decimal import Decimal"
+
+    def serialize(self, value):
+        return str(value)
+
+    def deserialize(self, value):
+        from decimal import Decimal
+        return Decimal(value)
+
+# Register custom scalars
+registry = ScalarRegistry()
+registry.register("Money", MoneyHandler())
+```
+
+Built-in handlers: `DateTimeHandler`, `DateHandler`, `UUIDHandler`, `JSONHandler`
+
+### Generation Hooks
+
+Transform the IR before generation or modify generated code after:
+
+```python
+from gql_pygen.core import HookRunner, FilterTypesHook, AddHeaderHook
+
+runner = HookRunner()
+
+# Pre-generation: filter out internal types
+runner.add_pre_hook(FilterTypesHook(exclude_prefix="_"))
+
+# Post-generation: add license header
+runner.add_post_hook(AddHeaderHook("# Copyright 2024 My Company"))
+```
+
+Custom hooks follow the `PreGenerateHook` and `PostGenerateHook` protocols:
+
+```python
+class MyPreHook:
+    def pre_generate(self, ir):
+        # Modify IR
+        return ir
+
+class MyPostHook:
+    def post_generate(self, filename: str, content: str) -> str:
+        # Transform generated code
+        return content
 ```
 
 ## How It Works
