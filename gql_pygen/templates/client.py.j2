@@ -26,7 +26,7 @@ class {{ client_name }}Client:
         {{ arg.name | snake_case | safe_param }}: {% if arg.is_list %}list[{{ arg.type_name }}]{% else %}{{ arg.type_name }}{% endif %}{% if arg.is_optional %} | None = None{% endif %},
         {%- endfor %}
     ) -> {% if op.is_return_list %}list[{{ op.return_type }}]{% else %}{{ op.return_type }}{% endif %}{% if op.is_return_optional %} | None{% endif %}:
-        """{{ op.description or op.name }}"""
+        """{{ (op.description or op.name) | truncate(86, True, '...', 0) }}"""
         {%- set field_selection = op.return_type | expand_fields %}
         query = """
         {{ op.operation_type }} {{ op.name | pascal_case }}(

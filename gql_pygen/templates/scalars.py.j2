@@ -120,7 +120,7 @@ Map = dict  # Key-value map
 
 {%- for scalar in scalars %}
 {%- if scalar.name not in ['String', 'Int', 'Float', 'Boolean', 'ID', 'IPAddress', 'MacAddress', 'Port', 'PortRange', 'IPRange', 'IPSubnet', 'NetworkSubnet', 'DateTime', 'Date', 'Time', 'Timestamp', 'Url', 'Email', 'Asn', 'Json', 'Object', 'Map'] %}
-# {{ (scalar.description or 'Custom scalar type') | safe_comment | truncate(90, True, '...') }}
+# {{ (scalar.description or 'Custom scalar type') | safe_comment | truncate(90, True, '...', 0) }}
 {{ scalar.name }} = str
 {%- endif %}
 {%- endfor %}
