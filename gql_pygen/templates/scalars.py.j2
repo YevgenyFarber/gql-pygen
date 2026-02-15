@@ -4,7 +4,7 @@ This module provides Python type aliases and validators for GraphQL scalar types
 """
 
 from typing import Annotated, Any
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from ipaddress import IPv4Address, IPv4Network, IPv6Network
 from datetime import datetime
 import re
 
@@ -12,7 +12,6 @@ from pydantic import (
     AfterValidator,
     EmailStr,
     HttpUrl,
-    Field,
 )
 
 
@@ -33,10 +32,12 @@ def _validate_mac_address(value: str) -> str:
         raise ValueError(f"Invalid MAC address: {value}")
     return value
 
+
 MacAddress = Annotated[str, AfterValidator(_validate_mac_address)]
 
 # IP Address types - using Python's ipaddress module
 IPAddress = IPv4Address  # Most common case
+
 
 def _validate_ip_range(value: str) -> str:
     """Validate IP range in CIDR notation or start-end format."""
@@ -60,6 +61,7 @@ def _validate_ip_range(value: str) -> str:
                 raise ValueError(f"Invalid IP range: {value}")
     return value
 
+
 IPRange = Annotated[str, AfterValidator(_validate_ip_range)]
 IPSubnet = IPv4Network
 NetworkSubnet = IPv4Network
@@ -67,11 +69,13 @@ NetworkSubnet = IPv4Network
 
 # === Port and Number Scalars ===
 
+
 def _validate_port(value: int) -> int:
     """Validate port number."""
     if not (0 <= value <= 65535):
         raise ValueError(f"Invalid port number: {value}")
     return value
+
 
 Port = Annotated[int, AfterValidator(_validate_port)]
 
@@ -89,6 +93,7 @@ def _validate_port_range(value: str) -> str:
         if not (0 <= port <= 65535):
             raise ValueError(f"Invalid port: {value}")
     return value
+
 
 PortRange = Annotated[str, AfterValidator(_validate_port_range)]
 
@@ -113,10 +118,10 @@ Object = Any  # Generic object
 Map = dict  # Key-value map
 
 
-{% for scalar in scalars %}
-{% if scalar.name not in ['String', 'Int', 'Float', 'Boolean', 'ID', 'IPAddress', 'MacAddress', 'Port', 'PortRange', 'IPRange', 'IPSubnet', 'NetworkSubnet', 'DateTime', 'Date', 'Time', 'Timestamp', 'Url', 'Email', 'Asn', 'Json', 'Object', 'Map'] %}
-# {{ (scalar.description or 'Custom scalar type') | safe_comment }}
+{%- for scalar in scalars %}
+{%- if scalar.name not in ['String', 'Int', 'Float', 'Boolean', 'ID', 'IPAddress', 'MacAddress', 'Port', 'PortRange', 'IPRange', 'IPSubnet', 'NetworkSubnet', 'DateTime', 'Date', 'Time', 'Timestamp', 'Url', 'Email', 'Asn', 'Json', 'Object', 'Map'] %}
+# {{ (scalar.description or 'Custom scalar type') | safe_comment | truncate(90, True, '...') }}
 {{ scalar.name }} = str
-{% endif %}
-{% endfor %}
+{%- endif %}
+{%- endfor %}
 
