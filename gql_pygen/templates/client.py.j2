@@ -2,9 +2,9 @@
 
 Provides typed methods for GraphQL operations.
 """
-
+{% if operations %}
 from typing import Any
-
+{% endif %}
 from .base_client import GraphQLClient
 from ..models import *
 
@@ -14,16 +14,16 @@ class {{ client_name }}Client:
 
     def __init__(self, client: GraphQLClient):
         self.client = client
-
-{%- for op in operations %}
+{% for op in operations %}
     {#- Sort arguments: required first, optional last -#}
     {%- set required_args = op.arguments | selectattr('is_optional', 'false') | list -%}
     {%- set optional_args = op.arguments | selectattr('is_optional', 'true') | list -%}
     {%- set sorted_args = required_args + optional_args %}
+
     def {{ op.name | snake_case }}(
         self,
         {%- for arg in sorted_args %}
-        {{ arg.name | safe_param }}: {% if arg.is_list %}list[{{ arg.type_name }}]{% else %}{{ arg.type_name }}{% endif %}{% if arg.is_optional %} | None = None{% endif %},
+        {{ arg.name | snake_case | safe_param }}: {% if arg.is_list %}list[{{ arg.type_name }}]{% else %}{{ arg.type_name }}{% endif %}{% if arg.is_optional %} | None = None{% endif %},
         {%- endfor %}
     ) -> {% if op.is_return_list %}list[{{ op.return_type }}]{% else %}{{ op.return_type }}{% endif %}{% if op.is_return_optional %} | None{% endif %}:
         """{{ op.description or op.name }}"""
@@ -44,7 +44,7 @@ class {{ client_name }}Client:
         """
         variables: dict[str, Any] = {
             {%- for arg in op.arguments %}
-            "{{ arg.name }}": {{ arg.name | safe_param }},
+            "{{ arg.name }}": {{ arg.name | snake_case | safe_param }},
             {%- endfor %}
         }
         # Remove None values
@@ -55,8 +55,7 @@ class {{ client_name }}Client:
             return None
 {%- if op.is_return_list %}
         return [{{ op.return_type }}.model_validate(item) for item in data]
-{% else %}
+{%- else %}
         return {{ op.return_type }}.model_validate(data)
-{% endif %}
-{% endfor %}
-
+{%- endif %}
+{%- endfor %}
