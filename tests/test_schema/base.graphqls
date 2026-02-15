@@ -1,0 +1,59 @@
+# Base types and interfaces for testing
+
+"""Reference to any object in the system"""
+interface ObjectRef {
+    "Unique identifier"
+    id: ID!
+    "Display name"
+    name: String!
+}
+
+"""User reference with additional details"""
+type UserRef implements ObjectRef {
+    id: ID!
+    name: String!
+    email: Email
+    role: UserRole
+}
+
+"""Account reference"""
+type AccountRef implements ObjectRef {
+    id: ID!
+    name: String!
+    description: String
+    status: AccountStatus
+    owner: UserRef
+}
+
+# Enums
+
+"""Available user roles"""
+enum UserRole {
+    admin
+    editor
+    viewer
+    guest
+}
+
+"""Account status values"""
+enum AccountStatus {
+    active
+    inactive
+    suspended
+    pending
+}
+
+# Custom scalars
+
+"""Email address format"""
+scalar Email
+
+"""IP address (IPv4 or IPv6)"""
+scalar IPAddress
+
+"""MAC address format"""
+scalar MacAddress
+
+"""Network port number (0-65535)"""
+scalar Port
+

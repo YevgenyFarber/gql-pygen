@@ -1,0 +1,47 @@
+"""Base GraphQL client interface.
+
+This module provides the abstract interface that concrete GraphQL
+client implementations must satisfy.
+"""
+
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
+
+
+class GraphQLClient(ABC):
+    """Abstract base class for GraphQL clients.
+
+    Implement this class with your preferred HTTP client
+    (requests, httpx, aiohttp, etc.).
+    """
+
+    @abstractmethod
+    def execute(
+        self,
+        query: str,
+        variables: Optional[Dict[str, Any]] = None,
+        operation_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Execute a GraphQL query/mutation.
+
+        Args:
+            query: The GraphQL query or mutation string.
+            variables: Optional dictionary of variables.
+            operation_name: Optional operation name for multi-operation documents.
+
+        Returns:
+            The 'data' portion of the GraphQL response.
+
+        Raises:
+            GraphQLError: If the server returns errors.
+        """
+        pass
+
+
+class GraphQLError(Exception):
+    """Exception raised for GraphQL errors."""
+
+    def __init__(self, message: str, errors: list = None):
+        super().__init__(message)
+        self.errors = errors or []
+

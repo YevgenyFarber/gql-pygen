@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gql-codegen"
+version = "0.1.0"
+description = "Improved GraphQL code generator for Python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Developer"}
+]
+dependencies = [
+    "graphql-core>=3.2.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.0.0",
+    "pydantic[email]",
+    "click>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+gql-codegen = "gql_codegen.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gql_codegen*"]
+
+[tool.setuptools.package-data]
+gql_codegen = ["templates/*.j2"]
+

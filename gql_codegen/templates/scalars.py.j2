@@ -1,0 +1,122 @@
+"""Generated GraphQL scalar type definitions with validation.
+
+This module provides Python type aliases and validators for GraphQL scalar types.
+"""
+
+from typing import Annotated, Any
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+from datetime import datetime
+import re
+
+from pydantic import (
+    AfterValidator,
+    EmailStr,
+    HttpUrl,
+    Field,
+)
+
+
+# === Built-in GraphQL Scalars ===
+String = str
+Int = int
+Float = float
+Boolean = bool
+ID = str
+
+
+# === Network-related Scalars ===
+
+def _validate_mac_address(value: str) -> str:
+    """Validate MAC address format."""
+    pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+    if not re.match(pattern, value):
+        raise ValueError(f"Invalid MAC address: {value}")
+    return value
+
+MacAddress = Annotated[str, AfterValidator(_validate_mac_address)]
+
+# IP Address types - using Python's ipaddress module
+IPAddress = IPv4Address  # Most common case
+
+def _validate_ip_range(value: str) -> str:
+    """Validate IP range in CIDR notation or start-end format."""
+    if '/' in value:
+        # CIDR notation
+        try:
+            IPv4Network(value, strict=False)
+        except ValueError:
+            try:
+                IPv6Network(value, strict=False)
+            except ValueError:
+                raise ValueError(f"Invalid IP range: {value}")
+    elif '-' in value:
+        # Start-end format
+        parts = value.split('-')
+        if len(parts) == 2:
+            try:
+                IPv4Address(parts[0].strip())
+                IPv4Address(parts[1].strip())
+            except ValueError:
+                raise ValueError(f"Invalid IP range: {value}")
+    return value
+
+IPRange = Annotated[str, AfterValidator(_validate_ip_range)]
+IPSubnet = IPv4Network
+NetworkSubnet = IPv4Network
+
+
+# === Port and Number Scalars ===
+
+def _validate_port(value: int) -> int:
+    """Validate port number."""
+    if not (0 <= value <= 65535):
+        raise ValueError(f"Invalid port number: {value}")
+    return value
+
+Port = Annotated[int, AfterValidator(_validate_port)]
+
+
+def _validate_port_range(value: str) -> str:
+    """Validate port range (e.g., '80-443')."""
+    if '-' in value:
+        parts = value.split('-')
+        if len(parts) == 2:
+            start, end = int(parts[0]), int(parts[1])
+            if not (0 <= start <= 65535 and 0 <= end <= 65535):
+                raise ValueError(f"Invalid port range: {value}")
+    else:
+        port = int(value)
+        if not (0 <= port <= 65535):
+            raise ValueError(f"Invalid port: {value}")
+    return value
+
+PortRange = Annotated[str, AfterValidator(_validate_port_range)]
+
+
+# === Date/Time Scalars ===
+DateTime = datetime
+Date = str  # ISO 8601 date string
+Time = str  # ISO 8601 time string
+Timestamp = int  # Unix timestamp
+
+
+# === URL and Email Scalars ===
+Url = HttpUrl
+Email = EmailStr
+Asn = int  # Autonomous System Number
+
+
+# === Generic/Fallback Scalars ===
+# For custom scalars without specific validation, we use str
+Json = Any  # JSON object
+Object = Any  # Generic object
+Map = dict  # Key-value map
+
+
+{% for scalar in scalars %}
+{% if scalar.name not in ['String', 'Int', 'Float', 'Boolean', 'ID', 'IPAddress', 'MacAddress', 'Port', 'PortRange', 'IPRange', 'IPSubnet', 'NetworkSubnet', 'DateTime', 'Date', 'Time', 'Timestamp', 'Url', 'Email', 'Asn', 'Json', 'Object', 'Map'] %}
+# {{ scalar.description or 'Custom scalar type' }}
+{{ scalar.name }} = str
+{% endif %}
+{% endfor %}
+
