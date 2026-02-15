@@ -14,7 +14,7 @@ class {{ client_name }}Client:
 
     def __init__(self, client: GraphQLClient):
         self.client = client
-{% for op in operations %}
+{%- for op in operations %}
     {#- Sort arguments: required first, optional last -#}
     {%- set required_args = op.arguments | selectattr('is_optional', 'false') | list -%}
     {%- set optional_args = op.arguments | selectattr('is_optional', 'true') | list -%}
@@ -60,4 +60,3 @@ class {{ client_name }}Client:
         return {{ op.return_type }}.model_validate(data)
 {%- endif %}
 {%- endfor %}
-
