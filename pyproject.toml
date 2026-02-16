@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gql-pygen"
-version = "0.1.0"
-description = "GraphQL to Python code generator - generates typed Pydantic models and async clients"
+version = "0.2.0"
+description = "GraphQL to Python code generator - generates typed Pydantic models and sync/async clients"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -41,5 +41,6 @@ gql_pygen = ["templates/*.j2"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "twine>=6.2.0",
 ]
 

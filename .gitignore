@@ -48,3 +48,4 @@ tests/generated/
 # Schema files (user-provided)
 *.tgz
 schema.tgz
+.pypirc

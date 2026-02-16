@@ -5,7 +5,8 @@
 ## Features
 
 - 🎯 **Typed Pydantic Models** — All GraphQL types, inputs, and enums become Pydantic models with full IDE autocomplete
-- 🔗 **Nested Async Client** — Access operations via intuitive paths like `client.policy.firewall.add_rule(...)`
+- 🔗 **Nested Client** — Access operations via intuitive paths like `client.policy.firewall.add_rule(...)`
+- ⚡ **Async & Sync Support** — Generate async clients (default) or sync clients with `--sync` flag
 - ✅ **Response Parsing** — Responses are automatically validated and converted to typed models
 - 🎛️ **Field Selection** — Request ALL fields, MINIMAL fields, or custom field sets
 - 📦 **Archive Support** — Works with `.graphqls` files, directories, `.zip`, `.tar.gz`, and `.tgz` archives
@@ -80,14 +81,18 @@ Options:
   -s, --schema PATH        Path to schema file, directory, or archive [required]
   -o, --output PATH        Output directory for generated code [required]
   -t, --templates PATH     Custom template directory (overrides built-in templates)
+  --async                  Generate async clients (async def + await). Default: sync
   -v, --verbose            Enable verbose output
 ```
 
 **Examples:**
 
 ```bash
-# From a directory of .graphqls files
+# From a directory of .graphqls files (sync mode, default)
 gql-pygen generate -s ./schema -o ./generated
+
+# Generate async clients
+gql-pygen generate -s ./schema -o ./generated --async
 
 # From an archive
 gql-pygen generate -s ./schema-bundle.tgz -o ./generated
@@ -98,7 +103,7 @@ gql-pygen generate -s ./schema -o ./generated --templates ./my_templates
 
 ### `gql-pygen client`
 
-Generate a typed async client with all operations.
+Generate a typed client with all operations. By default generates async clients.
 
 ```bash
 gql-pygen client [OPTIONS]
@@ -107,14 +112,19 @@ Options:
   -s, --schema PATH        Path to schema file, directory, or archive [required]
   -o, --output PATH        Output file for generated client [required]
   -n, --client-name TEXT   Client class name (default: GraphQLClient)
+  --async                  Generate async clients (default: True)
+  --sync                   Generate sync clients instead of async
   -v, --verbose            Enable verbose output
 ```
 
 **Examples:**
 
 ```bash
-# Generate with default class name (GraphQLClient)
+# Generate async client (default)
 gql-pygen client -s ./schema.tgz -o ./client.py
+
+# Generate sync client
+gql-pygen client -s ./schema.tgz -o ./client.py --sync
 
 # Generate with custom class name
 gql-pygen client -s ./schema.tgz -o ./client.py --client-name CatoClient
