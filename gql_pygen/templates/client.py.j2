@@ -3,9 +3,14 @@
 Provides typed methods for GraphQL operations.
 """
 
-from typing import Optional, List, Any, Dict
-from .base_client import GraphQLClient
+from __future__ import annotations
+{%- if operations %}
+
+from typing import Any
+{%- endif %}
+
 from ..models import *
+from .base_client import GraphQLClient
 
 
 class {{ client_name }}Client:
@@ -13,19 +18,27 @@ class {{ client_name }}Client:
 
     def __init__(self, client: GraphQLClient):
         self.client = client
-
-    {% for op in operations %}
-    {# Sort arguments: required first, optional last #}
-    {% set required_args = op.arguments | selectattr('is_optional', 'false') | list %}
-    {% set optional_args = op.arguments | selectattr('is_optional', 'true') | list %}
-    {% set sorted_args = required_args + optional_args %}
-    def {{ op.name | snake_case }}(
+{%- for item in operations %}
+    {#- item is a dict with 'op' (IROperation) and 'method_name' (Python method name) -#}
+    {%- set op = item.op -%}
+    {%- set method_name = item.method_name -%}
+    {#- Sort arguments: required first, optional last -#}
+    {%- set required_args = op.arguments | selectattr('is_optional', 'false') | list -%}
+    {%- set optional_args = op.arguments | selectattr('is_optional', 'true') | list -%}
+    {%- set sorted_args = required_args + optional_args %}
+{% if is_async %}
+    async def {{ method_name }}(
         self,
+{%- else %}
+    def {{ method_name }}(
+        self,
+{%- endif -%}
         {%- for arg in sorted_args %}
-        {{ arg.name | safe_param }}: {% if arg.is_optional %}Optional[{% endif %}{% if arg.is_list %}List[{{ arg.type_name }}]{% else %}{{ arg.type_name }}{% endif %}{% if arg.is_optional %}] = None{% endif %},
+        {{ arg.name | snake_case | safe_param }}: {% if arg.is_list %}list[{{ arg.type_name }}]{% else %}{{ arg.type_name }}{% endif %}{% if arg.is_optional %} | None = None{% endif %},
         {%- endfor %}
-    ) -> {% if op.is_return_optional %}Optional[{% endif %}{% if op.is_return_list %}List[{{ op.return_type }}]{% else %}{{ op.return_type }}{% endif %}{% if op.is_return_optional %}]{% endif %}:
-        """{{ op.description or op.name }}"""
+    ) -> {% if op.is_return_list %}list[{{ op.return_type }}]{% else %}{{ op.return_type }}{% endif %}{% if op.is_return_optional %} | None{% endif %}:
+        """{{ (op.description or op.name) | truncate(86, True, '...', 0) }}"""
+        {%- set field_selection = op.return_type | expand_fields %}
         query = """
         {{ op.operation_type }} {{ op.name | pascal_case }}(
             {%- for arg in op.arguments %}
@@ -36,27 +49,41 @@ class {{ client_name }}Client:
                 {%- for arg in op.arguments %}
                 {{ arg.name }}: ${{ arg.name }}{% if not loop.last %},{% endif %}
                 {%- endfor %}
-            ) {
-                {{ op.return_type | expand_fields }}
-            }
+            ){% if field_selection %} {
+                {{ field_selection }}
+            }{% endif %}
         }
         """
-        variables: Dict[str, Any] = {
+        variables: dict[str, Any] = {
             {%- for arg in op.arguments %}
-            "{{ arg.name }}": {{ arg.name | safe_param }},
+            "{{ arg.name }}": {{ arg.name | snake_case | safe_param }},
             {%- endfor %}
         }
         # Remove None values
         variables = {k: v for k, v in variables.items() if v is not None}
+{%- if is_async %}
+        result = await self.client.execute(query, variables)
+{%- else %}
         result = self.client.execute(query, variables)
+{%- endif %}
         data = result.get("{{ op.name }}")
+{%- if op.is_return_optional %}
         if data is None:
             return None
-        {% if op.is_return_list %}
-        return [{{ op.return_type }}.model_validate(item) for item in data]
-        {% else %}
+{%- endif %}
+{#- Scalar types don't have model_validate - return data directly -#}
+{%- set scalar_types = ['String', 'Int', 'Float', 'Boolean', 'ID', 'MacAddress', 'IPAddress', 'IPRange', 'IPSubnet', 'NetworkSubnet', 'Port', 'PortRange', 'DateTime', 'Date', 'Time', 'Timestamp', 'Url', 'Email', 'Asn', 'Json', 'Object', 'Map'] %}
+{%- if op.return_type in scalar_types %}
+{%- if op.is_return_list %}
+        return data if data is not None else []
+{%- else %}
+        return data
+{%- endif %}
+{%- else %}
+{%- if op.is_return_list %}
+        return [{{ op.return_type }}.model_validate(item) for item in data] if data is not None else []
+{%- else %}
         return {{ op.return_type }}.model_validate(data)
-        {% endif %}
-
-    {% endfor %}
-
+{%- endif %}
+{%- endif %}
+{%- endfor %}

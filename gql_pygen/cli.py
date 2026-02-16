@@ -1,15 +1,16 @@
 """Command-line interface for gql-pygen."""
 
-import click
 import shutil
 import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
 
-from .core.parser import SchemaParser
-from .core.generator import CodeGenerator
+import click
+
 from .core.client_generator import ClientGenerator
+from .core.generator import CodeGenerator
+from .core.parser import SchemaParser
 
 
 def extract_archive(archive_path: Path) -> str:
@@ -64,7 +65,14 @@ def main():
     is_flag=True,
     help="Enable verbose output.",
 )
-def generate(schema: str, output: str, templates: str, verbose: bool):
+@click.option(
+    "--async",
+    "is_async",
+    is_flag=True,
+    default=False,
+    help="Generate async clients (async def + await). Default: sync clients.",
+)
+def generate(schema: str, output: str, templates: str, verbose: bool, is_async: bool):
     """Generate Python code from GraphQL schema.
 
     Examples:
@@ -113,14 +121,16 @@ def generate(schema: str, output: str, templates: str, verbose: bool):
             click.echo(f"  Mutations: {len(ir.mutations)}")
 
         # Generate code
-        click.echo("Generating code...")
+        mode_str = "async" if is_async else "sync"
+        click.echo(f"Generating code ({mode_str} mode)...")
         generator = CodeGenerator(
             ir, str(output_path),
-            template_dir=str(template_dir) if template_dir else None
+            template_dir=str(template_dir) if template_dir else None,
+            is_async=is_async,
         )
         generator.generate()
 
-        click.echo(f"Done! Generated code in {output_path}")
+        click.echo(f"Done! Generated {mode_str} code in {output_path}")
     finally:
         # Clean up temp directory
         if temp_dir:
@@ -154,20 +164,39 @@ def generate(schema: str, output: str, templates: str, verbose: bool):
     is_flag=True,
     help="Enable verbose output.",
 )
-def client(schema: str, output: str, client_name: str, verbose: bool):
+@click.option(
+    "--async",
+    "is_async",
+    is_flag=True,
+    default=True,
+    help="Generate async clients (default: True).",
+)
+@click.option(
+    "--sync",
+    "is_sync",
+    is_flag=True,
+    default=False,
+    help="Generate sync clients instead of async.",
+)
+def client(schema: str, output: str, client_name: str, verbose: bool, is_async: bool, is_sync: bool):
     """Generate auto-client with typed methods from GraphQL schema.
 
     This generates a nested client structure like:
         client.policy.internet_firewall.add_rule(...)
 
-    The generated client includes all queries and mutations as typed async methods.
+    The generated client includes all queries and mutations as typed methods.
+    By default, async methods are generated. Use --sync for synchronous methods.
 
     Examples:
 
         gql-pygen client --schema ./schema.tgz --output ./client.py
 
         gql-pygen client -s ./schema -o ./client.py --client-name MyClient
+
+        gql-pygen client -s ./schema -o ./client.py --sync
     """
+    # --sync overrides --async
+    use_async = not is_sync
     schema_path = Path(schema).resolve()
     output_path = Path(output).resolve()
     temp_dir = None
@@ -201,21 +230,23 @@ def client(schema: str, output: str, client_name: str, verbose: bool):
             click.echo(f"  Nested operations: {len([op for op in ir.all_operations if len(op.path) > 1])}")
 
         # Generate client code
-        click.echo(f"Generating client code (class: {client_name})...")
-        generator = ClientGenerator(ir, client_name=client_name)
+        mode_str = "async" if use_async else "sync"
+        click.echo(f"Generating client code (class: {client_name}, mode: {mode_str})...")
+        generator = ClientGenerator(ir, client_name=client_name, is_async=use_async)
         code = generator.generate_client_code()
 
         # Count stats
         num_lines = len(code.split('\n'))
         num_classes = code.count('class ')
-        num_methods = code.count('async def ')
+        method_pattern = 'async def ' if use_async else 'def '
+        num_methods = code.count(method_pattern)
 
         if verbose:
             click.echo(f"  Lines: {num_lines}")
             click.echo(f"  Classes: {num_classes}")
-            click.echo(f"  Async methods: {num_methods}")
+            click.echo(f"  {mode_str.capitalize()} methods: {num_methods}")
 
-        # Create output directory if needed
+        # Create an output directory if needed
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write the file
@@ -223,7 +254,7 @@ def client(schema: str, output: str, client_name: str, verbose: bool):
         with open(output_path, 'w') as f:
             f.write(code)
 
-        click.echo(f"Done! Generated {num_classes} client classes with {num_methods} methods.")
+        click.echo(f"Done! Generated {num_classes} client classes with {num_methods} {mode_str} methods.")
         click.echo(f"Output: {output_path}")
 
     finally:
@@ -234,4 +265,3 @@ def client(schema: str, output: str, client_name: str, verbose: bool):
 
 if __name__ == "__main__":
     main()
-

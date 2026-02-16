@@ -4,8 +4,9 @@ This module provides the abstract interface that concrete GraphQL
 client implementations must satisfy.
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from abc import ABC
+from abc import abstractmethod
+from typing import Any
 
 
 class GraphQLClient(ABC):
@@ -16,12 +17,21 @@ class GraphQLClient(ABC):
     """
 
     @abstractmethod
+{%- if is_async %}
+    async def execute(
+        self,
+        query: str,
+        variables: dict[str, Any] | None = None,
+        operation_name: str | None = None,
+    ) -> dict[str, Any]:
+{%- else %}
     def execute(
         self,
         query: str,
-        variables: Optional[Dict[str, Any]] = None,
-        operation_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any] | None = None,
+        operation_name: str | None = None,
+    ) -> dict[str, Any]:
+{%- endif %}
         """Execute a GraphQL query/mutation.
 
         Args:
@@ -44,4 +54,3 @@ class GraphQLError(Exception):
     def __init__(self, message: str, errors: list = None):
         super().__init__(message)
         self.errors = errors or []
-

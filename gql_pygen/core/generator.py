@@ -14,7 +14,7 @@ import ast
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader, PackageLoader, select_autoescape
 
@@ -50,14 +50,14 @@ def safe_docstring(text: str) -> str:
 def safe_comment(text: str) -> str:
     """Make text safe for a single-line Python comment.
 
-    Removes newlines, replaces markdown formatting, and ensures
+    Removes newlines, replaces Markdown formatting, and ensures
     the text doesn't cause syntax errors when used as # comment.
     """
     if not text:
         return ""
     # Replace newlines with spaces
     text = text.replace('\n', ' ').replace('\r', '')
-    # Remove markdown bold/italic markers
+    # Remove Markdown bold/italic markers
     text = text.replace('**', '').replace('*', '')
     # Collapse multiple spaces
     import re
@@ -102,8 +102,7 @@ class CodeGenerator:
         generator = CodeGenerator(
             ir=schema,
             output_dir="./generated",
-            template_dir="./my_templates"
-        )
+            template_dir="./my_templates")
     """
 
     # Maximum depth for field expansion in queries
@@ -113,7 +112,8 @@ class CodeGenerator:
         self,
         ir: IRSchema,
         output_dir: str,
-        template_dir: Optional[str] = None,
+        template_dir: str | None = None,
+        is_async: bool = False,
     ):
         """Initialize the code generator.
 
@@ -122,12 +122,15 @@ class CodeGenerator:
             output_dir: Directory where generated code will be written
             template_dir: Optional directory with custom Jinja2 templates.
                           Templates here override the built-in templates.
+            is_async: If True, generate async clients (async def + await).
+                     If False (default), generate sync clients.
         """
         self.ir = ir
         self.output_dir = output_dir
         self.template_dir = template_dir
+        self.is_async = is_async
 
-        # Build template loader - custom templates take precedence
+        # Build template-loader-custom templates take precedence
         loaders = []
         if template_dir:
             template_path = Path(template_dir)
@@ -138,6 +141,7 @@ class CodeGenerator:
         self.env = Environment(
             loader=ChoiceLoader(loaders),
             autoescape=select_autoescape(),
+            keep_trailing_newline=True,
         )
         # Register custom filters
         self.env.filters["snake_case"] = snake_case
@@ -172,7 +176,7 @@ class CodeGenerator:
         lines = ["__typename"]
         for field in ir_type.fields:
             field_type = field.type_name
-            # Check if field is a scalar or enum
+            # Check if a field is a scalar or enum
             if field_type in self.ir.scalars or field_type in self.ir.enums:
                 lines.append(field.name)
             elif field_type in ["String", "Int", "Float", "Boolean", "ID"]:
@@ -218,9 +222,11 @@ class CodeGenerator:
         self._generate_init_files()
 
     def _generate_file(
-        self, template_name: str, output_path: str, context: Dict[str, Any]
+        self, template_name: str, output_path: str, context: dict[str, Any]
     ):
-        """Render a template and write to file."""
+        """Render a template and write to a file."""
+        # Always inject is_async into context for templates
+        context = {**context, "is_async": self.is_async}
         template = self.env.get_template(template_name)
         content = template.render(context)
 
@@ -241,7 +247,7 @@ class CodeGenerator:
 
     def _generate_models(self):
         """Generate model files, organized by source schema file."""
-        models_by_file: Dict[str, Dict] = {}
+        models_by_file: dict[str, dict] = {}
 
         for type_name, file_name in self.ir.type_to_file.items():
             base_name = (
@@ -268,19 +274,19 @@ class CodeGenerator:
 
         for base_name in sorted(models_by_file.keys()):
             content = models_by_file[base_name]
-            self._prepare_model_context(base_name, content, models_by_file)
+            self._prepare_model_context(base_name, content, interface_fields)
             content["interface_fields"] = interface_fields
             self._generate_file("models.py.j2", f"models/{base_name}.py", content)
 
     def _prepare_model_context(
-        self, base_name: str, content: Dict, all_models: Dict
+        self, base_name: str, content: dict, interface_fields: dict
     ):
         """Prepare cross-module imports and full type names."""
         local_types = {t.name for t in content["types"]} | {
             i.name for i in content["interfaces"]
         }
-        type_to_module: Dict[str, str] = {}
-        external_deps: Set[tuple] = set()
+        type_to_module: dict[str, str] = {}
+        external_deps: set[tuple] = set()
 
         # Find external dependencies
         for type_name in local_types:
@@ -301,18 +307,32 @@ class CodeGenerator:
                             external_deps.add((dep_base, dep))
                             type_to_module[dep] = dep_base
 
+        # Track which modules are actually used (for external_imports)
+        used_modules: set[str] = set()
+
         # Set full_type_name and full_interfaces for types
         for ir_type in content["types"]:
             ir_type.full_type_name = ir_type.name
             ir_type.full_interfaces = []
+
+            # Collect inherited field names (these are skipped in output)
+            inherited_field_names: set[str] = set()
+            for iface in ir_type.interfaces:
+                if iface in interface_fields:
+                    inherited_field_names.update(interface_fields[iface])
+
             for iface in ir_type.interfaces:
                 if iface in type_to_module:
                     ir_type.full_interfaces.append(f"{type_to_module[iface]}.{iface}")
+                    used_modules.add(type_to_module[iface])
                 else:
                     ir_type.full_interfaces.append(iface)
             for field in ir_type.fields:
                 if field.type_name in type_to_module:
                     field.full_type_name = f"{type_to_module[field.type_name]}.{field.type_name}"
+                    # Only add to used_modules if this field will actually be output
+                    if field.name not in inherited_field_names:
+                        used_modules.add(type_to_module[field.type_name])
                 else:
                     field.full_type_name = field.type_name
 
@@ -321,21 +341,23 @@ class CodeGenerator:
             for field in interface.fields:
                 if field.type_name in type_to_module:
                     field.full_type_name = f"{type_to_module[field.type_name]}.{field.type_name}"
+                    used_modules.add(type_to_module[field.type_name])
                 else:
                     field.full_type_name = field.type_name
 
-        # Group imports by file
-        imports_by_file: Dict[str, list] = {}
+        # Group imports by file - only include modules that are actually used
+        imports_by_file: dict[str, list] = {}
         for dep_base, dep_type in external_deps:
-            if dep_base not in imports_by_file:
-                imports_by_file[dep_base] = []
-            imports_by_file[dep_base].append(dep_type)
+            if dep_base in used_modules:
+                if dep_base not in imports_by_file:
+                    imports_by_file[dep_base] = []
+                imports_by_file[dep_base].append(dep_type)
 
         content["external_imports"] = imports_by_file
 
     def _generate_clients(self):
         """Generate client files grouped by operation domain."""
-        clients: Dict[str, list] = {}
+        clients: dict[str, list] = {}
         for op in self.ir.queries + self.ir.mutations:
             domain = op.name.split("_")[0] if "_" in op.name else op.name[:7]
             if domain not in clients:
@@ -343,12 +365,64 @@ class CodeGenerator:
             clients[domain].append(op)
 
         for domain, ops in clients.items():
+            # Detect duplicate operation names and suffix mutations to disambiguate
+            ops_with_method_names = self._resolve_method_name_conflicts(ops)
             client_name = pascal_case(domain)
             self._generate_file(
                 "client.py.j2",
                 f"clients/{snake_case(domain)}_client.py",
-                {"client_name": client_name, "operations": ops},
+                {"client_name": client_name, "operations": ops_with_method_names},
             )
+
+    @staticmethod
+    def _resolve_method_name_conflicts(operations: list) -> list[dict]:
+        """Resolve duplicate method names by suffixing with operation type and index.
+
+        Strategy:
+        1. If only one operation has a name: use the name as-is
+        2. If query and mutation share a name: query keeps the name, mutation gets '_mutation'
+        3. If multiple same operations share a name: append index (_2, _3, etc.)
+
+        Returns a list of dicts containing the operation plus a 'method_name' key.
+        """
+        # Track method names that have been assigned to detect collisions
+        assigned_names: dict[str, int] = {}  # method_name -> count
+        result = []
+
+        # First pass: group by snake_case name to identify conflicts
+        name_to_ops: dict[str, list] = {}
+        for op in operations:
+            base_name = snake_case(op.name)
+            if base_name not in name_to_ops:
+                name_to_ops[base_name] = []
+            name_to_ops[base_name].append(op)
+
+        # Second pass: assign method names
+        for op in operations:
+            base_name = snake_case(op.name)
+            ops_with_same_name = name_to_ops[base_name]
+
+            if len(ops_with_same_name) == 1:
+                # No conflict - use base name
+                method_name = base_name
+            else:
+                # Conflict exists - determine the suffix
+                if op.operation_type == "mutation":
+                    method_name = f"{base_name}_mutation"
+                else:
+                    # Query keeps the base name
+                    method_name = base_name
+
+            # Check if this method_name is already used and add an index if needed
+            if method_name in assigned_names:
+                assigned_names[method_name] += 1
+                method_name = f"{method_name}_{assigned_names[method_name]}"
+            else:
+                assigned_names[method_name] = 1
+
+            result.append({"op": op, "method_name": method_name})
+
+        return result
 
     def _generate_init_files(self):
         """Generate __init__.py files for packages."""
@@ -370,9 +444,8 @@ class CodeGenerator:
             f.write('    from cato_gql_client_pkg.generated_client.models import *\n')
             f.write('"""\n\n')
 
-            f.write('import sys\n')
             f.write('import importlib\n')
-            f.write('from typing import TYPE_CHECKING\n')
+            f.write('from typing import TYPE_CHECKING\n\n')
             f.write('from pydantic import BaseModel\n\n')
 
             # List of submodules
@@ -387,11 +460,13 @@ class CodeGenerator:
 _loaded_modules = {}
 _rebuild_done = False
 
+
 def _load_module(name):
     """Load a submodule and cache it."""
     if name not in _loaded_modules:
         _loaded_modules[name] = importlib.import_module(f".{name}", __name__)
     return _loaded_modules[name]
+
 
 def _rebuild_loaded_models():
     """Rebuild all loaded models to resolve forward references."""
@@ -422,6 +497,7 @@ def _rebuild_loaded_models():
 
     _rebuild_done = True
 
+
 def __getattr__(name):
     """Lazy import of types from submodules."""
     # First check if it's a submodule name
@@ -443,6 +519,7 @@ def __getattr__(name):
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
+
 def __dir__():
     """List all available names including lazy-loaded types."""
     names = list(globals().keys())
@@ -451,6 +528,7 @@ def __dir__():
     for module in _loaded_modules.values():
         names.extend(n for n in dir(module) if not n.startswith('_'))
     return sorted(set(names))
+
 
 # Type checking imports for IDE support
 if TYPE_CHECKING:
@@ -467,8 +545,11 @@ if TYPE_CHECKING:
         ]
         with open(os.path.join(self.output_dir, "clients/__init__.py"), "w") as f:
             f.write('"""Generated GraphQL clients."""\n\n')
-            f.write("from .base_client import GraphQLClient, GraphQLError\n")
+            # Write imports in sorted order to satisfy isort (I001)
             for client_file in sorted(client_files):
-                if client_file != "base_client":
+                if client_file == "base_client":
+                    # Use explicit re-export to avoid F401 unused import warning
+                    f.write("from .base_client import GraphQLClient as GraphQLClient\n")
+                    f.write("from .base_client import GraphQLError as GraphQLError\n")
+                else:
                     f.write(f"from .{client_file} import *\n")
-
